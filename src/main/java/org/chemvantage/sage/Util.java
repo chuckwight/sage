@@ -2,17 +2,17 @@ package org.chemvantage.sage;
 
 import static com.googlecode.objectify.ObjectifyService.ofy;
 
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-
-import com.auth0.jwt.JWT;
-import com.auth0.jwt.algorithms.Algorithm;
-import com.auth0.jwt.interfaces.DecodedJWT;
-import com.auth0.jwt.interfaces.JWTVerifier;
 import com.google.cloud.ServiceOptions;
 import com.googlecode.objectify.annotation.Entity;
 import com.googlecode.objectify.annotation.Id;
 import com.googlecode.objectify.annotation.Ignore;
+import com.sendgrid.Method;
+import com.sendgrid.Request;
+import com.sendgrid.Response;
+import com.sendgrid.SendGrid;
+import com.sendgrid.helpers.mail.Mail;
+import com.sendgrid.helpers.mail.objects.Content;
+import com.sendgrid.helpers.mail.objects.Email;
 
 @Entity
 public class Util {
@@ -26,8 +26,23 @@ public class Util {
 	private String sendGridAPIKey = "ChangeMe";
 	
 	private static Util u;
+	
 	@Ignore static String projectId = ServiceOptions.getDefaultProjectId();
 	@Ignore static String serverUrl = "https://" + projectId + ".appspot.com";
+	
+	@Ignore static String head = "<!DOCTYPE html><html lang='en'>\n"
+			+ "<head>\n"
+			+ "  <meta charset='UTF-8' />\n"
+			+ "  <meta name='viewport' content='width=device-width, initial-scale=1.0' />\n"
+			+ "  <meta name='description' content='ChemVantage is an LTI app that works with yur LMS for teaching and learning college-level General Chemistry.' />\n"
+			+ "  <link rel='icon' href='images/logo.png' />\n"
+			+ "  <link rel='canonical' href='https://sage.appspot.com' />\n"
+			+ "  <title>Sage</title>\n"
+			+ "  <link href='https://fonts.googleapis.com/css2?family=Poppins:wght@100;200;300;400;500;600;700;800;900&family=Shantell+Sans:wght@300;400;500;600;700;800&display=swap' rel='stylesheet'/>\n"
+			+ "  <link rel='stylesheet' href='css/style.css'>\n"
+			+ "</head>\n"
+			+ "<body>\n";
+	@Ignore static String foot = "</body></html>";
 
 	private Util() {}
 	
@@ -50,28 +65,20 @@ public class Util {
 		}
 	}
 	
-	static String getHash(String email) {
-		try {
-			if (u==null) init();
-			MessageDigest md = MessageDigest.getInstance("SHA-256");
-        	byte[] bytes = md.digest((email + u.salt).getBytes(StandardCharsets.UTF_8));
-        	StringBuilder sb = new StringBuilder();
-            for (byte b : bytes) {
-                sb.append(String.format("%02x", b));
-            }
-            return sb.toString();
-		} catch (Exception e) {
-        	return null;
-        }
-	}
-	
-	static String validateToken(String token) throws Exception {
-			Algorithm algorithm = Algorithm.HMAC256(Util.getHMAC256Secret());
-			JWTVerifier verifier = JWT.require(algorithm).withIssuer(serverUrl).build();
-			verifier.verify(token);
-			DecodedJWT decoded = JWT.decode(token);
-			String nonce = decoded.getClaim("nonce").asString();
-			if (!Nonce.isUnique(nonce)) throw new Exception("The login link can onloy be used once.");
-			return decoded.getSubject();
+	public static void sendEmail(String recipientName, String recipientEmail, String subject, String message) 
+			throws Exception {
+		Email from = new Email("admin@chemvantage.org","ChemVantage LLC");
+		if (recipientName==null) recipientName="";
+		Email to = new Email(recipientEmail,recipientName);
+		Content content = new Content("text/html", message);
+		Mail mail = new Mail(from, subject, to, content);
+
+		SendGrid sg = new SendGrid(getSendGridAPIKey());
+		Request request = new Request();
+		request.setMethod(Method.POST);
+		request.setEndpoint("mail/send");
+		request.setBody(mail.build());
+		Response response = sg.api(request);
+		if (response.getStatusCode() > 299) throw new Exception("Error: " + response.getBody());
 	}
 }
