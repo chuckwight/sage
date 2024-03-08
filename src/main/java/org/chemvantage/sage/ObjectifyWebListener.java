@@ -19,33 +19,12 @@ public class ObjectifyWebListener implements ServletContextListener {
 	  final Datastore datastore = DatastoreOptions.newBuilder().build().getService();
 	  ObjectifyService.init(new ObjectifyFactory(datastore));
     
-    // This is a good place to register your POJO entity classes.
-    ObjectifyService.register(Assignment.class);
-    ObjectifyService.register(Concept.class);
-    ObjectifyService.register(Contact.class);
-    ObjectifyService.register(Deployment.class);
-    ObjectifyService.register(EmailMessage.class);
-    ObjectifyService.register(Group.class);
-    ObjectifyService.register(HWTransaction.class);
-    ObjectifyService.register(Nonce.class);
-    ObjectifyService.register(PollTransaction.class);
-    ObjectifyService.register(PlacementExamTransaction.class);
-    ObjectifyService.register(PracticeExamTransaction.class);
-    ObjectifyService.register(PremiumUser.class);
-    ObjectifyService.register(ProposedQuestion.class);
-    ObjectifyService.register(Question.class);
-    ObjectifyService.register(QuizTransaction.class);
-    ObjectifyService.register(RSAKeyPair.class);
-    ObjectifyService.register(Score.class);
-    ObjectifyService.register(STTransaction.class);
-    ObjectifyService.register(Subject.class);
-    ObjectifyService.register(Text.class);
-    ObjectifyService.register(Topic.class);
-    ObjectifyService.register(User.class);
-    ObjectifyService.register(UserReport.class);
-    ObjectifyService.register(Video.class);
-    ObjectifyService.register(VideoTransaction.class);
-    ObjectifyService.register(Voucher.class);
+	  // This is a good place to register your POJO entity classes.
+	  ObjectifyService.register(Concept.class);
+	  ObjectifyService.register(Nonce.class);
+	  ObjectifyService.register(Question.class);
+	  ObjectifyService.register(Score.class);
+	  ObjectifyService.register(User.class);
     
   }
 	
