@@ -16,7 +16,7 @@ import com.sendgrid.helpers.mail.objects.Email;
 
 @Entity
 public class Util {
-	@Id Long id;
+	@Id Long id = 1L;
 	private String HMAC256Secret = "ChangeMe";
 	private String reCaptchaSecret = "ChangeMe";
 	private String reCaptchaSiteKey = "ChangeMe";
@@ -69,8 +69,8 @@ public class Util {
 			throws Exception {
 		Email from = new Email("admin@chemvantage.org","ChemVantage LLC");
 		if (recipientName==null) recipientName="";
-		Email to = new Email(recipientEmail,recipientName);
-		Content content = new Content("text/html", message);
+		Email to = new Email(recipientEmail);
+		Content content = new Content("text/plain", message);
 		Mail mail = new Mail(from, subject, to, content);
 
 		SendGrid sg = new SendGrid(getSendGridAPIKey());
@@ -79,6 +79,6 @@ public class Util {
 		request.setEndpoint("mail/send");
 		request.setBody(mail.build());
 		Response response = sg.api(request);
-		if (response.getStatusCode() > 299) throw new Exception("Error: " + response.getBody());
+		if (response.getStatusCode() > 299) throw new Exception("SendGrid Error " + response.getStatusCode() + ": " + response.getBody() + "\nAPIKey: " + Util.getSendGridAPIKey());
 	}
 }

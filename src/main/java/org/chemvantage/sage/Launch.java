@@ -5,6 +5,7 @@ import java.io.PrintWriter;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.Date;
+import java.util.regex.Pattern;
 
 import com.auth0.jwt.JWT;
 import com.auth0.jwt.algorithms.Algorithm;
@@ -25,69 +26,73 @@ public class Launch extends HttpServlet {
 
 	public void doGet(HttpServletRequest request,HttpServletResponse response)
 			throws ServletException, IOException {
-		/*
-		 *  To access this servlet, the request MUST contain either an email
-		 *  address or a token.
-		 *  1) Email: This method compares the hashed email to the Cookie "hashedId". 
-		 *     If matched, transfers control to Sage servlet.
-		 *     Otherwise, sends a tokenized login link to the email address.
-		 *  2) Token: This method validates the token, sets a Cookie and transfers to Sage.
-		 *  
-		 *  Failed: send error message and provide link to index.html
-		 */
 		
 		PrintWriter out = response.getWriter();
 		response.setContentType("text/html");
 		
+		// This method permits login using a valid tokenized link
+		
 		try {
 			String token = request.getParameter("Token");
+			String hashedId = validateToken(token);
+			Cookie cookie = new Cookie("hashedId",hashedId);
+			cookie.setMaxAge(60 * 60 * 24);
+			response.addCookie(cookie);
+			out.println(Sage.start(hashedId));
+		} catch (Exception e) {
+			out.println("Error: " + e.getMessage()==null?e.toString():e.getMessage());
+		}
+	}
+	
+	public void doPost(HttpServletRequest request,HttpServletResponse response)
+			throws ServletException, IOException {
+		
+		PrintWriter out = response.getWriter();
+		response.setContentType("text/html");
+		
+		// This method allows login with email and matching Cookie.
+		// If the cookie is missing, it returns a tokenized link via email.
+		try {
 			String email = request.getParameter("Email");
-			if (token != null) {
-				String hashedId = validateToken(token);
-				Cookie c = new Cookie("hashedId",hashedId);
-				response.addCookie(c);
-				out.println(Sage.start(hashedId));
-			} else if (email != null) {
-				String hashedId = getHash(email);
-				Cookie[] cookies = request.getCookies();
+			String regexPattern = "^(.+)@(\\S+)$";
+			if (!Pattern.compile(regexPattern).matcher(email).matches()) throw new Exception("Not a valid email address");
+			
+			String hashedId = getHash(email);
+			Cookie[] cookies = request.getCookies();
+			if (cookies == null) {  // no recent login
+				String serverUrl = request.getServerName().contains("localhost")?"http://localhost:8080":Util.serverUrl;
+				Util.sendEmail(null,email,"Sage Login Link", tokenMessage(createToken(hashedId),serverUrl));
+				out.println(emailSent());
+			} else {  // use Cookie login
 				for (Cookie c : cookies) {
 					if ("hashedId".equals(c.getName()) && c.getValue().equals(hashedId)) {
 						out.println(Sage.start(hashedId));
 						return;
 					}
 				}
-				Util.sendEmail(null,email,"Sage Login Link", tokenMessage(createToken(hashedId)));
-				out.println(emailSent());
 			}
 		} catch (Exception e) {
-			
+			out.println("Error: " + e.getMessage()==null?e.toString():e.getMessage());
 		}
 	}
-	
-	static String getHash(String email) {
-		try {
-			MessageDigest md = MessageDigest.getInstance("SHA-256");
-        	byte[] bytes = md.digest((email + Util.getSalt()).getBytes(StandardCharsets.UTF_8));
-        	StringBuilder sb = new StringBuilder();
-            for (byte b : bytes) {
-                sb.append(String.format("%02x", b));
-            }
-            return sb.toString();
-		} catch (Exception e) {
-        	return null;
-        }
-	}
-	
-	static String tokenMessage(String token) {
+
+	static String getHash(String email) throws Exception {
+		MessageDigest md = MessageDigest.getInstance("SHA-256");
+		byte[] bytes = md.digest((email + Util.getSalt()).getBytes(StandardCharsets.UTF_8));
+		StringBuilder sb = new StringBuilder();
+		for (byte b : bytes) {
+			sb.append(String.format("%02x", b));
+		}
+		return sb.toString();
+}
+
+	static String tokenMessage(String token, String serverUrl) {
 		DecodedJWT decoded = JWT.decode(token);
 		Date exp = decoded.getExpiresAt();
-		String iss = decoded.getIssuer();
-		return Util.head 
-				+ "<h1>Login to Sage</h1>"
+		return "<h1>Login to Sage</h1>"
 				+ "Please use the tokenized link below to login to your Sage account. "
 				+ "The link will expire in 5 minutes at " + exp + ".<p>"
-				+ "<a href='" + iss + "/launch?Token=" + token + "'>" + iss + "/launch?Token=" + token + "</a>"
-				+ Util.foot;
+				+ "<a href='" + serverUrl + "/launch?Token=" + token + "'>" + serverUrl + "/launch?Token=" + token + "</a>";
 	}
 	
 	static String createToken(String hashedId) throws Exception {
@@ -97,10 +102,8 @@ public class Launch extends HttpServlet {
 		Algorithm algorithm = Algorithm.HMAC256(Util.getHMAC256Secret());
 		
 		String token = JWT.create()
-				.withIssuer(Util.serverUrl)
 				.withSubject(hashedId)
 				.withExpiresAt(exp)
-				.withIssuedAt(now)
 				.withClaim("nonce", nonce)
 				.sign(algorithm);
 		
@@ -109,7 +112,7 @@ public class Launch extends HttpServlet {
 	
 	static String validateToken(String token) throws Exception {
 			Algorithm algorithm = Algorithm.HMAC256(Util.getHMAC256Secret());
-			JWTVerifier verifier = JWT.require(algorithm).withIssuer(Util.serverUrl).build();
+			JWTVerifier verifier = JWT.require(algorithm).build();
 			verifier.verify(token);
 			DecodedJWT decoded = JWT.decode(token);
 			String nonce = decoded.getClaim("nonce").asString();
@@ -122,7 +125,7 @@ public class Launch extends HttpServlet {
 		Date fiveMinutesFromNow = new Date(now.getTime() + 360000L);
 		return Util.head 
 				+ "<h1>Sage Login Link</h1>"
-				+ "We sent an email to yur address containing a tokenized link to login to Sage.<p>"
+				+ "We sent an email to your address containing a tokenized link to login to Sage.<p>"
 				+ "The link expires in 5 minutes at " + fiveMinutesFromNow + "."
 				+ Util.foot;
 	}

@@ -18,7 +18,7 @@
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     
     <!-- Project-specific properties -->
-    <exec.mainClass>org.chemvantage.SpringbootMain</exec.mainClass>
+    <exec.mainClass>org.chemvantage.sage.SpringbootMain</exec.mainClass>
     <googleCloudProjectId>GCLOUD_CONFIG</googleCloudProjectId>
   </properties>
 
