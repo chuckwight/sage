@@ -24,6 +24,7 @@ public class Util {
 	private String salt = "ChangeMe";
 	private String announcement = "";
 	private String sendGridAPIKey = "ChangeMe";
+	private String payPalClientId = "ChangeMe";
 	
 	private static Util u;
 	
@@ -53,6 +54,7 @@ public class Util {
 	static public String getSalt() {if (u==null) init(); return u.salt;}
 	static public String getAnnouncement() {if (u==null) init(); return u.announcement;}
 	static public String getSendGridAPIKey() {if (u==null) init(); return u.sendGridAPIKey;}
+	static public String getPayPalClientId() {if (u==null) init(); return u.payPalClientId;}
 	
 	static private void init() {
 		if (u==null) {

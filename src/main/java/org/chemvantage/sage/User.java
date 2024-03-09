@@ -28,4 +28,9 @@ public class User {
 		Date 	expires;	// end of subscription
 	
 		User() {}
+		
+		User(String hashedId) {
+			this.hashedId = hashedId;
+			this.expires = new Date(new Date().getTime() + 604800000L); // 1 week free trial
+		}
 }

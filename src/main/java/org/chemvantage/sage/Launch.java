@@ -1,9 +1,12 @@
 package org.chemvantage.sage;
 
+import static com.googlecode.objectify.ObjectifyService.ofy;
+
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
+import java.util.Calendar;
 import java.util.Date;
 import java.util.regex.Pattern;
 
@@ -14,16 +17,16 @@ import com.auth0.jwt.interfaces.JWTVerifier;
 
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
-import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import jakarta.servlet.http.HttpSession;
 
 @WebServlet("/launch")
 public class Launch extends HttpServlet {
 
 	private static final long serialVersionUID = 1L;
-
+	
 	public void doGet(HttpServletRequest request,HttpServletResponse response)
 			throws ServletException, IOException {
 		
@@ -35,9 +38,7 @@ public class Launch extends HttpServlet {
 		try {
 			String token = request.getParameter("Token");
 			String hashedId = validateToken(token);
-			Cookie cookie = new Cookie("hashedId",hashedId);
-			cookie.setMaxAge(60 * 60 * 24);
-			response.addCookie(cookie);
+			request.getSession().setAttribute("hashedId", hashedId);
 			out.println(Sage.start(hashedId));
 		} catch (Exception e) {
 			out.println("Error: " + e.getMessage()==null?e.toString():e.getMessage());
@@ -58,18 +59,31 @@ public class Launch extends HttpServlet {
 			if (!Pattern.compile(regexPattern).matcher(email).matches()) throw new Exception("Not a valid email address");
 			
 			String hashedId = getHash(email);
-			Cookie[] cookies = request.getCookies();
-			if (cookies == null) {  // no recent login
+			HttpSession session = request.getSession();
+			
+			if (!hashedId.equals(session.getAttribute("hashedId"))) { // no valiud session; send login link
 				String serverUrl = request.getServerName().contains("localhost")?"http://localhost:8080":Util.serverUrl;
 				Util.sendEmail(null,email,"Sage Login Link", tokenMessage(createToken(hashedId),serverUrl));
 				out.println(emailSent());
-			} else {  // use Cookie login
-				for (Cookie c : cookies) {
-					if ("hashedId".equals(c.getName()) && c.getValue().equals(hashedId)) {
-						out.println(Sage.start(hashedId));
-						return;
+				return;
+			}
+			
+			Date now = new Date();
+			User user = null;
+			try {  // returning user
+				user = ofy().load().type(User.class).id(hashedId).safe();
+				if (user.expires.before(now)) {
+					if (purchaseComplete(request)) {
+						String purchaseDetails = request.getParameter("OrderDetails");
+						out.println(thankYouPage(user,purchaseDetails));
 					}
+					else out.println(checkout(user));
 				}
+				else out.println(Sage.start(hashedId));
+			} catch (Exception e) {  // new user
+				user = new User(hashedId);
+				ofy().save().entity(user);
+				out.println(freeTrial(user));
 			}
 		} catch (Exception e) {
 			out.println("Error: " + e.getMessage()==null?e.toString():e.getMessage());
@@ -128,5 +142,94 @@ public class Launch extends HttpServlet {
 				+ "We sent an email to your address containing a tokenized link to login to Sage.<p>"
 				+ "The link expires in 5 minutes at " + fiveMinutesFromNow + "."
 				+ Util.foot;
+	}
+	
+	static String freeTrial(User user) {
+		StringBuffer buf = new StringBuffer(Util.head);
+		buf.append("<h1>Welcome to Sage</h1>"
+				+ "As a new user, you have been granted a one-week free trial subscription to Sage, an AI-powered "
+				+ "tutor for General Chemistry. Sage will take you on a journey through more than 100 key concepts "
+				+ "in General Chemistry, helping you to learn the concepts and solve problems using them.<p>"
+				+ "Your free trial subscription expires " + user.expires + "<p>"
+				+ "After that, you can continue to use Sage for just $5.00 per month.<p> "
+				+ "<a class=btn role=button href='/sage'>Continue</a><p>");		
+		return buf.toString() + Util.foot;
+	}
+	
+	static String checkout(User user) {
+		
+		/*
+		 * The base monthly price (currently $5.00) is set in the checkout_student.js file
+		 */
+		StringBuffer buf = new StringBuffer(Util.head);
+		buf.append("<h1>Your subscription to Sage has expired</h1>"
+				+ "Expiration: " + user.expires + "<p>"
+				+ "To continue the journey through more than 100 key concepts in General Chemistry, please "
+				+ "indicate your agreement with the two statements below by checking the boxes.<p>"
+				+ "<label><input type=checkbox id=terms onChange=showPurchase();> I understand and agree to the <a href=/terms_and_conditions.html target=_blank>Sage Terms and Conditions of Use</a>.</label> <br/>"
+				+ "<label><input type=checkbox id=norefunds onChange=showPurchase();> I understand that all Sage subscription fees are non-refundable.</label> <p>"
+				+ "<div id=purchase style='display:none'>\n");
+				
+		buf.append("Select the number of months you wish to purchase: "
+				+ "<select id=nMonthsChoice onChange=updateAmount();>"
+				+ "<option value=1>1 month</option>"
+				+ "<option value=2>2 months</option>"
+				+ "<option value=5 selected>5 months</option>"
+				+ "<option value=12>12 months</option>"
+				+ "</select><p>"
+				+ "Select your preferred payment method below. When the transaction is completed, your subscription will be activated immediately."
+				+ "<h2>Purchase: <span id=amt></span></h2>"
+				+ "  <div id=\"smart-button-container\">"
+				+ "    <div style=\"text-align: center;\">"
+				+ "      <div id=\"paypal-button-container\"></div>"
+				+ "    </div>"
+				+ "  </div>"
+				+ "</div>\n");
+		
+		buf.append("<script src='https://www.paypal.com/sdk/js?client-id=" + Util.getPayPalClientId() +"&enable-funding=venmo&currency=USD'></script>\n");
+		buf.append("<script src='/js/checkout_student.js'></script>");
+		buf.append("<script>initPayPalButton('" + user.hashedId + "')</script>");
+		
+		// Add a hidden activation form to submit via javascript when the payment is successful
+		buf.append("<form id=activationForm method=post action='/launch'>"
+				+ "<input type=hidden name=NMonths id=nmonths />"
+				+ "<input type=hidden name=AmountPaid id=amtPaid />"
+				+ "<input type=hidden name=OrderDetails id=orderdetails />"
+				+ "<input type=hidden name=HashedId value='" + user.hashedId + "' />"
+				+ "</form>");
+
+		return buf.toString() + Util.foot;
+	}
+	
+	static boolean purchaseComplete(HttpServletRequest request) {
+		try {
+			int nmonths = Integer.parseInt(request.getParameter("NMonths"));
+			String hashedId = (String)request.getSession(false).getAttribute("hashedId");
+			if (!request.getParameter("OrderDetails").contains(hashedId)) throw new Exception("Not a valid user.");
+			
+			// At this point it looks like a valid purchase; update the User's expiration date
+			Calendar cal = Calendar.getInstance();
+			cal.add(Calendar.MONTH, nmonths);
+			
+			User user = ofy().load().type(User.class).id(hashedId).safe();
+			user.expires = cal.getTime();
+			ofy().save().entity(user).now();
+			
+			return true;
+		} catch (Exception e) {
+			return false;
+		}
+	}
+	
+	static String thankYouPage(User user, String purchaseDetails) {
+		StringBuffer buf = new StringBuffer(Util.head);
+		
+		buf.append("<h1>Thank you for your purchase</h1>"
+				+ "It is now " + new Date() + "<p>"
+				+ "Your Sage subscription expires " + user.expires + "<p>"
+				+ "Please keep a copy of this page as proof of purchase.<p>"
+				+ "<a class=btn role=button href='/sage'>Continue</a><p>"
+				+ "Purchase Details:<br/>" + purchaseDetails + "<p>");
+		return buf.toString() + Util.foot;
 	}
 }
