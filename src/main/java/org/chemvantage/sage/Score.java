@@ -17,6 +17,8 @@
 
 package org.chemvantage.sage;
 
+import static com.googlecode.objectify.ObjectifyService.key;
+
 import com.googlecode.objectify.Key;
 import com.googlecode.objectify.annotation.Entity;
 import com.googlecode.objectify.annotation.Id;
@@ -25,9 +27,14 @@ import com.googlecode.objectify.annotation.Parent;
 
 @Entity
 public class Score {    // this object represents a best score achieved by a user on a quiz or homework
-	@Id	Long conceptId;      // from the datastore.
 	@Parent Key<User> owner;
-	@Index	int score;
+	@Id	Long conceptId;      // from the datastore.
+	@Index	int score = 0;
 	
-	Score() {}	
+	Score() {}
+	
+	Score(String hashedId, Long conceptId) {
+		this.owner = key(User.class,hashedId);
+		this.conceptId = conceptId;
+	}
 }

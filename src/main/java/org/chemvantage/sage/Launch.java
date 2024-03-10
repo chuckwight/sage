@@ -104,11 +104,16 @@ public class Launch extends HttpServlet {
 		DecodedJWT decoded = JWT.decode(token);
 		Date exp = decoded.getExpiresAt();
 		return "<h1>Login to Sage</h1>"
-				+ "Please use the tokenized link below to login to your Sage account. "
-				+ "The link will expire in 5 minutes at " + exp + ".<p>"
-				+ "<a href='" + serverUrl + "/launch?Token=" + token + "'>" + serverUrl + "/launch?Token=" + token + "</a>";
+			+ "<div style='display:flex; align-items:center;'>\n"
+			+ "Please click the tokenized button below to login to your Sage account.<br/>"
+			+ "The link can only be used once, and it will expire in 5 minutes at " + exp + ".<p>"
+			+ "<a href='" + serverUrl + "/launch?Token=" + token + "'>"
+			+ "<button style='border:none;color:white;padding:10px 10px;margin:4px 2px;font-size:16px;cursor:pointer;border-radius:10px;background-color:blue;'>"
+			+ "Login to Sage</button></a>"
+			+ "<img src='" + decoded.getIssuer() + "/images/sage.png' alt='Confucius Parrot' style='float:right'>\n"
+			+ "</div>";
 	}
-	
+
 	static String createToken(String hashedId) throws Exception {
 		Date now = new Date();
 		Date exp = new Date(now.getTime() + 360000L);  // 5 minutes from now
@@ -130,7 +135,7 @@ public class Launch extends HttpServlet {
 			verifier.verify(token);
 			DecodedJWT decoded = JWT.decode(token);
 			String nonce = decoded.getClaim("nonce").asString();
-			if (!Nonce.isUnique(nonce)) throw new Exception("The login link can onloy be used once.");
+			if (!Nonce.isUnique(nonce)) throw new Exception("The login link can only be used once.");
 			return decoded.getSubject();
 	}
 	
@@ -138,21 +143,28 @@ public class Launch extends HttpServlet {
 		Date now = new Date();
 		Date fiveMinutesFromNow = new Date(now.getTime() + 360000L);
 		return Util.head 
-				+ "<h1>Sage Login Link</h1>"
-				+ "We sent an email to your address containing a tokenized link to login to Sage.<p>"
-				+ "The link expires in 5 minutes at " + fiveMinutesFromNow + "."
+				+ "<div style='width:800px; display:flex; align-items:center;'>\n"
+				+ "<h1>Check Your Email</h1>"
+				+ "We sent an email to your address containing a tokenized link to login to Sage.<br/>"
+				+ "The link can only be used once, and it will expire in 5 minutes at " + fiveMinutesFromNow + "."
+				+ "<img src=/images/sage.png alt='Confucius Parrot' style='float:right'>\n"
+				+ "</div>\n"
 				+ Util.foot;
+		
 	}
 	
 	static String freeTrial(User user) {
 		StringBuffer buf = new StringBuffer(Util.head);
-		buf.append("<h1>Welcome to Sage</h1>"
+		buf.append("<div style='width:600px; display:flex; align-items:center;'>"
+				+ "<h1>Welcome to Sage</h1>"
 				+ "As a new user, you have been granted a one-week free trial subscription to Sage, an AI-powered "
 				+ "tutor for General Chemistry. Sage will take you on a journey through more than 100 key concepts "
 				+ "in General Chemistry, helping you to learn the concepts and solve problems using them.<p>"
-				+ "Your free trial subscription expires " + user.expires + "<p>"
+				+ "Your free trial subscription expires " + user.expires + "<br/>"
 				+ "After that, you can continue to use Sage for just $5.00 per month.<p> "
-				+ "<a class=btn role=button href='/sage'>Continue</a><p>");		
+				+ "<a class=btn role=button href='/sage'>Continue</a>"
+				+ "<img src=/images/sage.png alt='Confucius Parrot' style='float:right'>"
+				+ "</div><p>");		
 		return buf.toString() + Util.foot;
 	}
 	
@@ -162,12 +174,15 @@ public class Launch extends HttpServlet {
 		 * The base monthly price (currently $5.00) is set in the checkout_student.js file
 		 */
 		StringBuffer buf = new StringBuffer(Util.head);
-		buf.append("<h1>Your subscription to Sage has expired</h1>"
+		buf.append("<div style='width:600px; display:flex; align-items:center;'>"
+				+ "<h1>Your subscription to Sage has expired</h1>"
 				+ "Expiration: " + user.expires + "<p>"
 				+ "To continue the journey through more than 100 key concepts in General Chemistry, please "
 				+ "indicate your agreement with the two statements below by checking the boxes.<p>"
 				+ "<label><input type=checkbox id=terms onChange=showPurchase();> I understand and agree to the <a href=/terms_and_conditions.html target=_blank>Sage Terms and Conditions of Use</a>.</label> <br/>"
 				+ "<label><input type=checkbox id=norefunds onChange=showPurchase();> I understand that all Sage subscription fees are non-refundable.</label> <p>"
+				+ "<img src=/images/sage.png alt='Confucius Parrot' style='float:right'>"
+				+ "</div><p>"
 				+ "<div id=purchase style='display:none'>\n");
 				
 		buf.append("Select the number of months you wish to purchase: "

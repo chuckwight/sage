@@ -43,7 +43,15 @@ public class Util {
 			+ "  <link rel='stylesheet' href='css/style.css'>\n"
 			+ "</head>\n"
 			+ "<body>\n";
-	@Ignore static String foot = "</body></html>";
+	
+	@Ignore static String foot = "<footer><hr/>"
+			+ "<a style='text-decoration:none;color:#000080;font-weight:bold' href=/index.html>"
+			//+ "<img src=/images/logo.png alt='Sage logo' style='vertical-align:middle;width:30px;' /> "
+			+ "sage</a> | "
+			+ "<a href=/terms_and_conditions.html>Terms and Conditions of Use</a> | "
+			+ "<a href=/privacy_policy.html>Privacy Policy</a> | "
+			+ "<a href=/copyright.html>Copyright</a></footer>\n"
+			+ "</body></html>";
 
 	private Util() {}
 	
@@ -72,7 +80,7 @@ public class Util {
 		Email from = new Email("admin@chemvantage.org","ChemVantage LLC");
 		if (recipientName==null) recipientName="";
 		Email to = new Email(recipientEmail);
-		Content content = new Content("text/plain", message);
+		Content content = new Content("text/html", message);
 		Mail mail = new Mail(from, subject, to, content);
 
 		SendGrid sg = new SendGrid(getSendGridAPIKey());
