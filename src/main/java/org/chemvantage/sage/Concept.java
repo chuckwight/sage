@@ -16,11 +16,11 @@
 */
 
 package org.chemvantage.sage;
+
 /*
- * This entity represents a key concept, which is roughly equivalent to a section of a textbook chapter.
- * Typically, we can expect 4-8 Concepts per Topic.
- * Topics have an optional field consisting of a List of conceptId values
- * Questions have an optional field of one conceptId value, so they can be filtered in a query.
+ * This entity represents a key concept.
+ * Typically, we can expect 4-8 Concepts per chapter in a General Chemistry textbook.
+ * Questions have a field of one conceptId value, so they can be filtered in a query.
  */
 import java.io.Serializable;
 
@@ -34,11 +34,13 @@ public class Concept implements Serializable {
 	@Id 	Long id;
 	@Index 	String orderBy;
 	 		String title;
+	 		String summary;
 	
 	Concept() {}
 
-	Concept(String title,String orderBy) {
+	Concept(String title,String orderBy,String summary) {
 		this.title = title;
 		this.orderBy = orderBy;
+		this.summary = summary;
 	}
 }

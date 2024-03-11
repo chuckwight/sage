@@ -44,7 +44,7 @@ public class Util {
 			+ "</head>\n"
 			+ "<body>\n";
 	
-	@Ignore static String foot = "<footer><hr/>"
+	@Ignore static String foot = "<footer><hr style='width:600px;margin-left:0' />"
 			+ "<a style='text-decoration:none;color:#000080;font-weight:bold' href=/index.html>"
 			//+ "<img src=/images/logo.png alt='Sage logo' style='vertical-align:middle;width:30px;' /> "
 			+ "sage</a> | "

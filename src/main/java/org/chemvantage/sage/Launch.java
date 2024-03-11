@@ -39,7 +39,7 @@ public class Launch extends HttpServlet {
 			String token = request.getParameter("Token");
 			String hashedId = validateToken(token);
 			request.getSession().setAttribute("hashedId", hashedId);
-			out.println(Sage.start(hashedId));
+			response.sendRedirect("/sage");
 		} catch (Exception e) {
 			out.println("Error: " + e.getMessage()==null?e.toString():e.getMessage());
 		}
@@ -51,7 +51,7 @@ public class Launch extends HttpServlet {
 		PrintWriter out = response.getWriter();
 		response.setContentType("text/html");
 		
-		// This method allows login with email and matching Cookie.
+		// This method allows login with email and matching Session attribute.
 		// If the cookie is missing, it returns a tokenized link via email.
 		try {
 			String email = request.getParameter("Email");
@@ -61,7 +61,7 @@ public class Launch extends HttpServlet {
 			String hashedId = getHash(email);
 			HttpSession session = request.getSession();
 			
-			if (!hashedId.equals(session.getAttribute("hashedId"))) { // no valiud session; send login link
+			if (!hashedId.equals(session.getAttribute("hashedId"))) { // no valid session; send login link
 				String serverUrl = request.getServerName().contains("localhost")?"http://localhost:8080":Util.serverUrl;
 				Util.sendEmail(null,email,"Sage Login Link", tokenMessage(createToken(hashedId),serverUrl));
 				out.println(emailSent());
@@ -104,12 +104,14 @@ public class Launch extends HttpServlet {
 		DecodedJWT decoded = JWT.decode(token);
 		Date exp = decoded.getExpiresAt();
 		return "<h1>Login to Sage</h1>"
-			+ "<div style='display:flex; align-items:center;'>\n"
+			+ "<div style='display:flex; align-items:center;'>"
+			+ "<div>"
 			+ "Please click the tokenized button below to login to your Sage account.<br/>"
 			+ "The link can only be used once, and it will expire in 5 minutes at " + exp + ".<p>"
 			+ "<a href='" + serverUrl + "/launch?Token=" + token + "'>"
 			+ "<button style='border:none;color:white;padding:10px 10px;margin:4px 2px;font-size:16px;cursor:pointer;border-radius:10px;background-color:blue;'>"
 			+ "Login to Sage</button></a>"
+			+ "</div>"
 			+ "<img src='" + decoded.getIssuer() + "/images/sage.png' alt='Confucius Parrot' style='float:right'>\n"
 			+ "</div>";
 	}
@@ -121,6 +123,7 @@ public class Launch extends HttpServlet {
 		Algorithm algorithm = Algorithm.HMAC256(Util.getHMAC256Secret());
 		
 		String token = JWT.create()
+				.withIssuer(Util.serverUrl)
 				.withSubject(hashedId)
 				.withExpiresAt(exp)
 				.withClaim("nonce", nonce)
@@ -143,12 +146,14 @@ public class Launch extends HttpServlet {
 		Date now = new Date();
 		Date fiveMinutesFromNow = new Date(now.getTime() + 360000L);
 		return Util.head 
-				+ "<div style='width:800px; display:flex; align-items:center;'>\n"
 				+ "<h1>Check Your Email</h1>"
-				+ "We sent an email to your address containing a tokenized link to login to Sage.<br/>"
+				+ "<div style='width:600px; display:flex; align-items:center;'>"
+				+ "<div>"
+				+ "We sent an email to your address containing a tokenized link to login to Sage.<p>"
 				+ "The link can only be used once, and it will expire in 5 minutes at " + fiveMinutesFromNow + "."
-				+ "<img src=/images/sage.png alt='Confucius Parrot' style='float:right'>\n"
-				+ "</div>\n"
+				+ "</div>"
+				+ "<img src=/images/sage.png alt='Confucius Parrot' style='float:right'>"
+				+ "</div>"
 				+ Util.foot;
 		
 	}

@@ -30,6 +30,7 @@ public class Score {    // this object represents a best score achieved by a use
 	@Parent Key<User> owner;
 	@Id	Long conceptId;      // from the datastore.
 	@Index	int score = 0;
+	Long nextQuestionId = null;
 	
 	Score() {}
 	
