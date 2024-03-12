@@ -39,9 +39,7 @@ import com.googlecode.objectify.annotation.Index;
 public class Question implements Serializable, Cloneable {
 	private static final long serialVersionUID = 137L;
 	@Id 	Long id;
-	@Index	long topicId;
 	@Index	Long conceptId; 
-	@Index	String assignmentType;
 	@Index	String text;
 			String type;
 			int nChoices=0;
@@ -50,15 +48,14 @@ public class Question implements Serializable, Cloneable {
 			int significantFigures = 0;
 			String correctAnswer;
 			String tag;
-	@Index	int pointValue=1;
+			int pointValue=1;
+			Integer difficulty;  // null or 1 to 5
 			String parameterString;
-			String hint;
 			String solution;
 			String authorId;
 			String contributorId;
 			String editorId;
 			String notes;
-			String learn_more_url;
 			boolean scrambleChoices;
 			boolean strictSpelling;
 	private Integer nCorrectAnswers = null;
@@ -100,7 +97,6 @@ public class Question implements Serializable, Cloneable {
 	Question (long topicId,String text,String type,int nChoices,List<String> choices,
 			double requiredPrecision,int significantFigures,String correctAnswer,String tag,int pointValue,String parameterString,
 			String hint,String solution,String authorId,String contributorId,String editorId,String notes) {
-		this.topicId = topicId;
 		this.text = text;
 		this.type = type;
 		this.nChoices = nChoices;
@@ -111,7 +107,6 @@ public class Question implements Serializable, Cloneable {
 		this.tag = tag;
 		this.pointValue = pointValue;
 		this.parameterString = parameterString;
-		this.hint = hint;
 		this.solution = solution;
 		this.authorId = authorId;
 		this.contributorId = contributorId;
@@ -121,13 +116,11 @@ public class Question implements Serializable, Cloneable {
 	}
 
 	public void validateFields() {
-		if (assignmentType==null) assignmentType="";
 		if (text==null) text="";
 		if (type==null) type="";
 		if (correctAnswer==null) correctAnswer="";
 		if (tag==null) tag="";
 		if (parameterString==null) parameterString="";
-		if (hint==null) hint="";
 		if (solution==null) solution="";
 		if (authorId==null) authorId="";
 		if (contributorId==null) contributorId="";
@@ -370,8 +363,62 @@ public class Question implements Serializable, Cloneable {
 		return buf.toString();
 	}
 
-	String getHint() {
-		return parseString(hint) + "<br/>";
+	String printForSage() {
+		StringBuffer buf = new StringBuffer();
+		char choice = 'a';
+		List<Character> choice_keys = new ArrayList<Character>();
+		Random rand = new Random();
+		switch (getQuestionType()) {
+		case 1: // Multiple Choice
+			buf.append(text + "\n");
+			for (int i=0; i<nChoices; i++) choice_keys.add(Character.valueOf((char)('a'+i)));
+			buf.append("Select only the best answer:\n");
+			while (choice_keys.size()>0) {
+				choice = choice_keys.remove(scrambleChoices?rand.nextInt(choice_keys.size()):0);
+				buf.append(choices.get(choice-'a') + "\n");
+			}
+			break;
+		case 2: // True/False
+			buf.append(text + "\n");
+			buf.append("Select true or false:\n");
+			buf.append("True\n");
+			buf.append("False\n");
+			break;
+		case 3: // Select Multiple
+			buf.append(text + "\n");
+			for (int i=0; i<nChoices; i++) choice_keys.add(Character.valueOf((char)('a'+i)));
+			buf.append("Select all of the correct answers:\n");
+			while (choice_keys.size()>0) {
+				choice = choice_keys.remove(scrambleChoices?rand.nextInt(choice_keys.size()):0);
+				buf.append(choices.get(choice-'a') + "\n");
+			}
+			break;
+		case 4: // Fill-in-the-Word
+			buf.append("Fill in the blank with the correct word or phrase:\n" 
+					+ text + "_______________" + tag + "\n");
+			break;
+		case 5: // Numeric Answer
+			buf.append(parseString(text) + "\n");
+			switch (getNumericItemType()) {
+			case 0: buf.append("Enter the exact value: "); break;
+			case 1: buf.append("Enter the value with the appropriate number of significant figures:\n"); break;
+			case 2: int sf = (int)Math.ceil(-Math.log10(requiredPrecision/100.))+1;
+				buf.append("Include at least " + sf + " significant figures in your answer: \n"); break;
+			case 3: buf.append("Enter the value with the appropriate number of significant figures \n"); break;
+			default:
+			}
+			buf.append("____________" + parseString(tag) + "\n");
+			break;        
+		case 6: // FIVE_STAR rating
+			buf.append(text + "\n");
+			buf.append("Enter your rating from 1 to 5 stars: ______\n");
+			break;
+		case 7: // Short ESSAY question
+			buf.append(text + "\n");
+			buf.append("Enter your answer in 800 characters or less: ___________\n");
+			break;
+		}
+		return buf.toString();	
 	}
 	
 	String printAll() {
@@ -444,9 +491,6 @@ public class Question implements Serializable, Cloneable {
 					+ "<b>" + (this.hasACorrectAnswer()?getCorrectAnswer():"&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;") + "</b>"
 					+ "</span>");
 			buf.append("&nbsp;" + parseString(tag) + "<br/><br/>");
-			if (hint.length()>0) {
-				buf.append("Hint: " + parseString(hint) + "<br/><br/>");
-			}
 			if (solution.length()>0) {
 				buf.append("Solution:<br/>" + parseString(solution) + "<br/><br/>");
 			}
@@ -560,9 +604,6 @@ public class Question implements Serializable, Cloneable {
 					+ (showDetails?"<b>" + getCorrectAnswer() + "</b>":"&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;")
 					+ "</span>");
 			buf.append("&nbsp;" + parseString(tag) + "<br/>");
-			if (showDetails && hint.length()>0) {
-				buf.append("<br/>Hint:<br/>" + parseString(hint) + "<br/>");
-			}
 			if (showDetails && solution.length()>0) {
 				buf.append("<br/>Solution:<br/>" + parseString(solution) + "<br/>");
 			}
@@ -669,11 +710,6 @@ public class Question implements Serializable, Cloneable {
 	public boolean hasSolution() {
 		if (solution == null) solution = "";
 		return solution.length()>0?true:false;
-	}
-
-	public boolean hasHint() {
-		if (hint == null) hint = "";
-		return hint.length()>0?true:false;
 	}
 
 	int getQuestionType() {
@@ -808,8 +844,6 @@ public class Question implements Serializable, Cloneable {
 						+ "Correct answer: #22.9898*a/1000*b/10# g<p></p>"
 						+ "You can also display fractions in vertical format using encoding like (|numerator|denominator|)<br/><br/>'\";>What's This?</a></FONT>");
 				buf.append("<div id=detail1></div>");
-				buf.append("Hint:<br/><TEXTAREA NAME=Hint ROWS=3 COLS=60 WRAP=SOFT>"
-						+ amp2html(hint) + "</TEXTAREA><br/>");
 				buf.append("Solution:<br/><TEXTAREA NAME=Solution ROWS=10 COLS=60 WRAP=SOFT>" 
 						+ amp2html(solution) + "</TEXTAREA><br/>");
 				break;

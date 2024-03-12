@@ -58,7 +58,7 @@ public class ConceptManager extends HttpServlet {
 			if (c1 != null && (c1.summary == null || c1.summary.isEmpty())) c1.summary = getConceptSummary(c1);
 		} catch (Exception e) {}  // never mind
 		
-		buf.append("<td>"
+		buf.append("<td style='vertical-align:top;'>"
 				+ "<form method=post>"
 				+ "<table>"
 				+ "<tr><td style='text-align:right;'>Title: </td><td><input size=25 name=title value='" + (c1==null?"":c1.title) + "' /></td><tr/>"

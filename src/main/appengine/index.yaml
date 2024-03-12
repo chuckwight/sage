@@ -3,5 +3,4 @@ indexes:
 - kind: Question
   properties:
   - name: conceptId
-  - name: pctSuccess
-    direction: desc
+  - name: difficulty
