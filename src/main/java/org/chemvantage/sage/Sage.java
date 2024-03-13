@@ -76,11 +76,11 @@ public class Sage extends HttpServlet {
 		String hashedId = (String)session.getAttribute("hashedId");
 		
 		try {
-			Score s_old = getScore(hashedId);
+			Score s = getScore(hashedId);
 			JsonObject questionScore = scoreQuestion(request);
-			Score s_new = updateScore(s_old,questionScore);
-			ofy().save().entity(s_new).now();
-			out.println(printScore(questionScore,s_old,s_new));
+			boolean level_up = s.update(questionScore);
+			ofy().save().entity(s).now();
+			out.println(printScore(questionScore,s,level_up));
 		} catch (Exception e) {
 			out.println(Util.head + "Error: " + e.getMessage()==null?e.toString():e.getMessage() + Util.foot);	
 		}
@@ -339,7 +339,7 @@ public class Sage extends HttpServlet {
 			details.append("<h1>Congratulations!</h1>"
 					+ "<div style='width:800px;display:flex; align-items:center;'>"
 					+ "<div>"
-					+ "<b> Your answer is correct.</b><IMG SRC=/images/checkmark.gif ALT='Check mark' align=bottom /><p>"
+					+ "<b> Your answer is correct. </b><IMG SRC=/images/checkmark.gif ALT='Check mark' align=bottom /><p>"
 					+ "<a id=showLink href=# onClick=document.getElementById('solution').style='display:inline';this.style='display:none';document.getElementById('polly').style='display:none';>(show me)</a>"
 					+ "<div id=solution style='display:none'>");
 			switch (q.getQuestionType()) {
@@ -391,55 +391,17 @@ public class Sage extends HttpServlet {
 		return studentAnswer;
 	}
 
-	static Score updateScore(Score s, JsonObject questionScore) throws Exception {
-		int oldQuintileRank = s.score/20 + 1;
-		int rawScore = questionScore.get("rawScore").getAsInt();
-		int proposedScore = 0;  // range 0-100 percent
-		/*
-		 * Apply this scoring algorithm to update the user's Score on the current Concept:
-		 * If the user got help from Sage:
-		 *   prior score < 50 - add 5*rawScore (0, 5 or 10 points)
-		 *   prior score > 50 - subtract 5*(2-rawScore)
-		 * Otherwise, if the user got no help:
-		 *   q = user’s quintile (1-5) based on current score
-		 *   rawScore (0,1 or 2) - a 1 means partially or almost correct
-		 *   n = (17-2q)/3 averaging constant - range 2-5 
-		 *   Sn = (60c + nSn-1)/(n+1)  stars (100 max = 83.3% proficient)
-		 *   If (c<2) the minimum quintile rank score is a floor for the user (0, 20, 40, 60, 80).
-		 */
-		if (s.gotHelp) {
-			proposedScore = s.score + 5*rawScore - (s.score<50?0:10);
-		} else {
-			int n = (17-2*oldQuintileRank)/3;
-			proposedScore = (60*rawScore + n*s.score)/(n+1);
-			if (proposedScore > 100) proposedScore = 100;
-		}
-		
-		// Check for any changes in quintile rank and apply guardrails, if needed:
-		int newQuintileRank = proposedScore/20 + 1;
-		if (newQuintileRank < oldQuintileRank) proposedScore = (oldQuintileRank - 1)*20;  // minimum score
-		
-		// return the updated Score object
-		s.score = proposedScore;
-		s.questionId = proposedScore==100?null:getQuestionId(s);
-		s.gotHelp =  false;
-		
-		return s;  // returns true if user passed a quintile milestone, including achieving 100% score.
-	}
-	
-	static String printScore(JsonObject questionScore, Score s_old, Score s_new) throws Exception {
+	static String printScore(JsonObject questionScore, Score s, boolean level_up) throws Exception {
 		StringBuffer buf = new StringBuffer(Util.head);
 		
 		buf.append(questionScore.get("details").getAsString());
-		int level_old = s_old.score/20 + 1;
-		int level_new = s_new.score/20 + 1;
-		if (level_new == 6) {
+		if (s.score == 100) {
 			buf.append("<h2>Congratulations! Your score is 100%. You have mastered this concept.</h2>");
-		} else if (level_new > level_old) {
-			buf.append("<h3>You have moved up to Level " + level_new +".</h3>"
-					+ "<b>Your current score on this concept is " + s_new.score + "%.</b>");
+		} else if (level_up) {
+			buf.append("<h3>You have moved up to Level " + (s.score/20 + 1) +".</h3>"
+					+ "<b>Your current score on this concept is " + s.score + "%.</b>");
 		} else {
-			buf.append("<b>Your current score on this concept is " + s_new.score + "%.</b>");
+			buf.append("<b>Your current score on this concept is " + s.score + "%.</b>");
 		}
 		// print a button to continue
 		buf.append("<p><a class=btn role=button href='/sage'>Continue</a><p>");
