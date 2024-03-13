@@ -60,6 +60,7 @@ public class QuestionManager extends HttpServlet {
 						+ "<input type=submit name=UserRequest value='Save Difficulty'/>"
 						+ "<table>");
 				for (Question q : questions) {
+					q.setParameters();
 					buf.append("<tr><td style='width:400px;'>"
 							+ q.printAll()
 							+ "</td><td style='vertical-align:top;'>easy"
