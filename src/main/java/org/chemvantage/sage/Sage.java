@@ -16,8 +16,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 
-import org.chemvantage.Subject;
-
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
@@ -43,11 +41,14 @@ public class Sage extends HttpServlet {
 		PrintWriter out = response.getWriter();
 		response.setContentType("text/html");
 		
+		HttpSession session = request.getSession(false);
+		if (session == null) {
+			response.sendRedirect("/");
+			return;
+		}
+		String hashedId = (String)session.getAttribute("hashedId");
+		
 		try {
-			HttpSession session = request.getSession(false);
-			if (session == null) response.sendRedirect("/");
-			String hashedId = (String)session.getAttribute("hashedId");
-			
 			Score s = getScore(hashedId);
 			if (s.questionId == null) {  // user is starting a new Concept
 				out.println(start(hashedId,s));
@@ -70,9 +71,16 @@ public class Sage extends HttpServlet {
 		PrintWriter out = response.getWriter();
 		response.setContentType("text/html");
 	
+		HttpSession session = request.getSession(false);
+		if (session == null) response.sendRedirect("/");
+		String hashedId = (String)session.getAttribute("hashedId");
+		
 		try {
-			int rawScore = scoreQuestion(request);
-			
+			Score s_old = getScore(hashedId);
+			JsonObject questionScore = scoreQuestion(request);
+			Score s_new = updateScore(s_old,questionScore);
+			ofy().save().entity(s_new).now();
+			out.println(printScore(questionScore,s_old,s_new));
 		} catch (Exception e) {
 			out.println(Util.head + "Error: " + e.getMessage()==null?e.toString():e.getMessage() + Util.foot);	
 		}
@@ -95,7 +103,7 @@ public class Sage extends HttpServlet {
 			Concept c = conceptMap.get(s.conceptId);
 			
 			if (s.questionId == null) {
-				s.questionId = getquestionId(c,s);
+				s.questionId = getQuestionId(s);
 				ofy().save().entity(s).now();
 			}
 
@@ -138,7 +146,7 @@ public class Sage extends HttpServlet {
 			}
 			buf.append("</div>");
 			
-			buf.append("<hr style='width:800px'>");  // break between Sage helper panel and question panel
+			buf.append("<hr style='width:800px;margin-left:0'>");  // break between Sage helper panel and question panel
 
 			int p = new Random().nextInt();
 			q.setParameters(p);
@@ -158,41 +166,53 @@ public class Sage extends HttpServlet {
 	}
 	
 	static Score getScore(String hashedId) {
+		Score s = null;
+		// Get all of the keys for existing Scores for this user (cheap query)
+		List<Key<Score>> scoreKeys = ofy().load().type(Score.class).ancestor(key(User.class,hashedId)).keys().list();
+		
+		// Look for the next missing Score in the sequence (this forgives adding a Concept later)
 		if (conceptList == null) refreshConcepts();
-		int nScores = ofy().load().type(Score.class).ancestor(key(User.class,hashedId)).count(); // inexpensive query
-		
-		if (nScores==0) return new Score(hashedId,conceptList.get(0).id);  // new user
-		
-		Key<Score> k = key(key(User.class,hashedId),Score.class,conceptList.get(nScores-1).id);
-		Score s = ofy().load().key(k).safe();
-		
-		if (s.score < 100) return s;								// user is still working on a Concept
-		else return new Score(hashedId,conceptList.get(nScores).id);	// user is just starting a new Concept
+		Key<Score> k = null;
+		for (Concept c : conceptList) {
+			k = key(key(User.class,hashedId),Score.class,c.id);
+			if (scoreKeys.contains(k)) continue;
+			// found the first missing Score
+			if (conceptList.indexOf(c)==0) { // new user 
+				return new Score(hashedId,conceptList.get(0).id);  // return a new Score
+			}
+			// check the previous Score to see if it is complete
+			k = key(key(User.class,hashedId),Score.class,conceptList.get(conceptList.indexOf(c)-1).id);
+			s = ofy().load().key(k).safe();
+			if (s.score < 100) return s;  // still working on the previous Concept
+			else return new Score(hashedId,c.id);  // return a new Score
+		}
+		// at this point, all of the Concepts have been completed
+		return null;
 	}
 	
-	static Long getquestionId(Concept c, Score s) throws Exception {
+	static Long getQuestionId(Score s) throws Exception {
 		// We select the next question by calculating the user's scoreQuintile (1 - 5) and selecting
 		// a question at random from those having the same degree of difficulty (1-5) so that more 
 		// advanced users are offered more difficult questions as they progress through the Concept.
 		
 		Long currentQuestionId = s.questionId;  // don't duplicate this
 		int scoreQuintile = s.score/20 + 1;
-		int nConceptQuestions = ofy().load().type(Question.class).filter("conceptId",c.id).count();
+		int nConceptQuestions = ofy().load().type(Question.class).filter("conceptId",s.conceptId).count();
 		if (nConceptQuestions == 0) throw new Exception("Sorry, there are no questions for this Concept.");
 		
-		int nQuintileQuestions =  ofy().load().type(Question.class).filter("conceptId",c.id).filter("difficulty",scoreQuintile).count();
+		int nQuintileQuestions =  ofy().load().type(Question.class).filter("conceptId",s.conceptId).filter("difficulty",scoreQuintile).count();
 		
 		// select one question index at random
 		Key<Question> k = null;
 		Random rand = new Random();
 		if (nQuintileQuestions > 5) {
-			k = ofy().load().type(Question.class).filter("conceptId",c.id).filter("difficulty",scoreQuintile).offset(rand.nextInt(nQuintileQuestions)).keys().first().safe();
+			k = ofy().load().type(Question.class).filter("conceptId",s.conceptId).filter("difficulty",scoreQuintile).offset(rand.nextInt(nQuintileQuestions)).keys().first().safe();
 		} else {  // use the full range of questions for this Concept
-			k = ofy().load().type(Question.class).filter("conceptId",c.id).offset(rand.nextInt(nConceptQuestions)).keys().first().safe();	
+			k = ofy().load().type(Question.class).filter("conceptId",s.conceptId).offset(rand.nextInt(nConceptQuestions)).keys().first().safe();	
 		}
 		
 		// If this duplicates the current question, try again (recursively)
-		if (k.getId() == currentQuestionId && nConceptQuestions > 1) return getquestionId(c,s);
+		if (k.getId() == currentQuestionId && nConceptQuestions > 1) return getQuestionId(s);
 		
 		return k.getId();
 	}
@@ -239,15 +259,25 @@ public class Sage extends HttpServlet {
 		return content;
 	}
 	
-	static int scoreQuestion(HttpServletRequest request) throws Exception {
+	static JsonObject scoreQuestion(HttpServletRequest request) throws Exception {
+		/*
+		 * This method scores the question and returns a JSON containing
+		 *   rawScore - 0, 1 or 2 meaning incorrect, partially correct, correct
+		 *   showMe - a more detailed response provided to the student
+		 */
+		JsonObject questionScore = new JsonObject();
 		int rawScore = 0;  // result is0, 1 or 2. Tne partial score 1 is for wrong sig figs.
+		StringBuffer details = new StringBuffer();  // includes correct solution or explanation of partial score
+		
 		Long questionId = Long.parseLong(request.getParameter("QuestionId"));
 		String studentAnswer = orderResponses(request.getParameterValues(Long.toString(questionId)));
-		if (studentAnswer.isEmpty()) return 0;
+		if (studentAnswer.isEmpty()) return null;
 		
 		Question q = ofy().load().type(Question.class).id(questionId).safe();
+		q.setParameters(Integer.parseInt(request.getParameter("Parameter")));
 		
-		
+		// Get the raw score for the student's answer
+		JsonObject api_score = null;
 		switch (q.getQuestionType()) {
 		case 1:
 		case 2:
@@ -296,15 +326,61 @@ public class Sage extends HttpServlet {
 			// get the ChatGPT score from the response:
 			try {
 				String content = api_response.get("choices").getAsJsonArray().get(0).getAsJsonObject().get("message").getAsJsonObject().get("content").getAsString();
-				JsonObject api_score = JsonParser.parseString(content).getAsJsonObject();
-				rawScore = api_score.get("score").getAsInt(); 	// scale 1-5
-				rawScore = rawScore/2;  						// scale 0-2
+				api_score = JsonParser.parseString(content).getAsJsonObject();
+				rawScore = api_score.get("score").getAsInt()/2; 	// scale 0-2
 			} catch (Exception e) {}
 			break;
 		default:
 		}
 		
-		return rawScore;
+		// get the details for the student
+		switch (rawScore) {
+		case 2:  // correct answer
+			details.append("<h1>Congratulations!</h1>"
+					+ "<div style='width:800px;display:flex; align-items:center;'>"
+					+ "<div>"
+					+ "<b> Your answer is correct.</b><IMG SRC=/images/checkmark.gif ALT='Check mark' align=bottom /><p>"
+					+ "<a id=showLink href=# onClick=document.getElementById('solution').style='display:inline';this.style='display:none';document.getElementById('polly').style='display:none';>(show me)</a>"
+					+ "<div id=solution style='display:none'>");
+			switch (q.getQuestionType()) {
+			case 7: 
+				details.append(api_score.get("feedback")+ "<p>");
+				break;
+			case 6:
+				details.append("Thank you for your rating.");
+				break;
+			default:
+				details.append(q.printAllToStudents(studentAnswer));
+			}
+			details.append("</div>"  // end of solution
+					+ "</div>"    // end of left side
+					+ "<img id=polly src='/images/parrot.png' alt='Fun parrot character' style='float:left; margin:10px'>"
+					+ "</div>");
+			break;
+		case 1:  // partially correct answer
+			details.append("<h1>Your answer is partially correct</h1>");
+			switch (q.getQuestionType()) {
+			case 5:  // numeric
+				details.append("It appears that you've done the calculation correctly, but your answer "
+						+ "does not have the correct number of significant figures appropriate for "
+						+ "the data given in the question. If your answer ends in a zero, be sure "
+						+ "to include a decimal point to indicate which digits are significant or "
+						+ "(better!) use <a href=https://en.wikipedia.org/wiki/Scientific_notation#E_notation>"
+						+ "scientific E notation</a>.<p>");
+			case 7:  // short_essay
+				details.append(api_score.get("feedback") + "<p>");
+			default: // no other types currently offer partial credit
+			}
+			break;
+		case 0: 
+			details.append("<h1>Sorry, your answer is not correct.<IMG SRC=/images/xmark.png ALT='X mark' align=middle></h1>");
+			break;
+		}
+		
+		questionScore.addProperty("rawScore", rawScore);
+		questionScore.addProperty("details", details.toString());
+		
+		return questionScore;
 	}
 	
 	static String orderResponses(String[] answers) {
@@ -315,5 +391,58 @@ public class Sage extends HttpServlet {
 		return studentAnswer;
 	}
 
-
+	static Score updateScore(Score s, JsonObject questionScore) throws Exception {
+		int oldQuintileRank = s.score/20 + 1;
+		int rawScore = questionScore.get("rawScore").getAsInt();
+		int proposedScore = 0;  // range 0-100 percent
+		/*
+		 * Apply this scoring algorithm to update the user's Score on the current Concept:
+		 * If the user got help from Sage:
+		 *   prior score < 50 - add 5*rawScore (0, 5 or 10 points)
+		 *   prior score > 50 - subtract 5*(2-rawScore)
+		 * Otherwise, if the user got no help:
+		 *   q = user’s quintile (1-5) based on current score
+		 *   rawScore (0,1 or 2) - a 1 means partially or almost correct
+		 *   n = (17-2q)/3 averaging constant - range 2-5 
+		 *   Sn = (60c + nSn-1)/(n+1)  stars (100 max = 83.3% proficient)
+		 *   If (c<2) the minimum quintile rank score is a floor for the user (0, 20, 40, 60, 80).
+		 */
+		if (s.gotHelp) {
+			proposedScore = s.score + 5*rawScore - (s.score<50?0:10);
+		} else {
+			int n = (17-2*oldQuintileRank)/3;
+			proposedScore = (60*rawScore + n*s.score)/(n+1);
+			if (proposedScore > 100) proposedScore = 100;
+		}
+		
+		// Check for any changes in quintile rank and apply guardrails, if needed:
+		int newQuintileRank = proposedScore/20 + 1;
+		if (newQuintileRank < oldQuintileRank) proposedScore = (oldQuintileRank - 1)*20;  // minimum score
+		
+		// return the updated Score object
+		s.score = proposedScore;
+		s.questionId = proposedScore==100?null:getQuestionId(s);
+		s.gotHelp =  false;
+		
+		return s;  // returns true if user passed a quintile milestone, including achieving 100% score.
+	}
+	
+	static String printScore(JsonObject questionScore, Score s_old, Score s_new) throws Exception {
+		StringBuffer buf = new StringBuffer(Util.head);
+		
+		buf.append(questionScore.get("details").getAsString());
+		int level_old = s_old.score/20 + 1;
+		int level_new = s_new.score/20 + 1;
+		if (level_new == 6) {
+			buf.append("<h2>Congratulations! Your score is 100%. You have mastered this concept.</h2>");
+		} else if (level_new > level_old) {
+			buf.append("<h3>You have moved up to Level " + level_new +".</h3>"
+					+ "<b>Your current score on this concept is " + s_new.score + "%.</b>");
+		} else {
+			buf.append("<b>Your current score on this concept is " + s_new.score + "%.</b>");
+		}
+		// print a button to continue
+		buf.append("<p><a class=btn role=button href='/sage'>Continue</a><p>");
+		return buf.toString() + Util.foot;
+	}
 }
