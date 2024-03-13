@@ -72,12 +72,19 @@ public class Sage extends HttpServlet {
 		response.setContentType("text/html");
 	
 		HttpSession session = request.getSession(false);
-		if (session == null) response.sendRedirect("/");
+		if (session == null) {
+			response.sendRedirect("/");
+			return;
+		}
 		String hashedId = (String)session.getAttribute("hashedId");
 		
 		try {
 			Score s = getScore(hashedId);
 			JsonObject questionScore = scoreQuestion(request);
+			if (questionScore == null) {
+				doGet(request,response);
+				return;
+			}
 			boolean level_up = s.update(questionScore);
 			ofy().save().entity(s).now();
 			out.println(printScore(questionScore,s,level_up));
@@ -111,9 +118,11 @@ public class Sage extends HttpServlet {
 					+ "Sage will be your guide to learning more than 100 key concepts in General Chemistry.");
 
 			buf.append("<h2>" + c.title + "</h2>"
+					+ "<div style='max-width:800px'>"
 					+ "<img src=/images/sage.png alt='Confucius Parrot' style='float:right;margin:20px;'>"
 					+ c.summary + "<p>"
-					+ "<a class=btn role=button href='/sage'>Continue</a>");
+					+ "<a class=btn role=button href='/sage'>Continue</a>"
+					+ "</div>");
 
 		} catch (Exception e) {
 			buf.append("<p>Error: " + e.getMessage()==null?e.toString():e.getMessage());
@@ -130,7 +139,7 @@ public class Sage extends HttpServlet {
 			
 			buf.append("<h1>" + c.title + "</h1>");
 			
-			buf.append("<div style='width:800px; height:400px; display:flex; align-items:center;'>");
+			buf.append("<div style='width:800px; height=300px; overflow=auto; display:flex; align-items:center;'>");
 			if (help) {
 				buf.append("<div>"
 						+ getHelp(q)
@@ -140,11 +149,19 @@ public class Sage extends HttpServlet {
 				buf.append("<div>"
 						+ "Please submit your answer to the question below.<p>"
 						+ "If you get stuck, I am here to help you, but your score will be higher if you do it by yourself.<p>"
-						+ "<a class=btn role=button href=/sage?Help=true>Please help me with this question</a>"
+						+ "<a id=help class=btn role=button href=/sage?Help=true onclick=waitForHelp()>Please help me with this question</a>"
 						+ "</div>"
 						+ "<img src=/images/sage.png alt='Confucius Parrot' style='float:right'>");
 			}
 			buf.append("</div>");
+			
+			// include some javascript to change the submit button
+			buf.append("<script>"
+					+ "function waitForHelp() {\n"
+					+ " let a = document.getElementById('help');\n"
+					+ " a.innerHTML = 'Please wait a moment for Sage to answer.';\n"
+					+ "}\n"
+					+ "</script>");
 			
 			buf.append("<hr style='width:800px;margin-left:0'>");  // break between Sage helper panel and question panel
 
@@ -152,13 +169,21 @@ public class Sage extends HttpServlet {
 			q.setParameters(p);
 
 			// Print the question for the student
-			buf.append("<form method=post>"
+			buf.append("<form method=post onsubmit='waitForScore();' >"
 					+ "<input type=hidden name=QuestionId value='" + q.id + "' />"
 					+ "<input type=hidden name=Parameter value='" + p + "' />"
 					+ q.print()
-					+ "<input type=submit class='btn' onclick='this.value=\'Please wait a moment while we score your answer\';this.disabled=true;' />"
+					+ "<input id='sub" + q.id + "' type=submit class='btn' />"
 					+ "</form><p>");
 			
+			// include some javascript to change the submit button
+			buf.append("<script>"
+					+ "function waitForScore() {\n"
+					+ " let b = document.getElementById('sub" + q.id + "');\n"
+					+ " b.disabled = true;\n"
+					+ " b.value = 'Please wait a moment while we score your response.';\n"
+					+ "}\n"
+					+ "</script>");
 		} catch (Exception e) {
 			buf.append("<p>Error: " + e.getMessage()==null?e.toString():e.getMessage());
 		}
@@ -354,7 +379,7 @@ public class Sage extends HttpServlet {
 			}
 			details.append("</div>"  // end of solution
 					+ "</div>"    // end of left side
-					+ "<img id=polly src='/images/parrot.png' alt='Fun parrot character' style='float:left; margin:10px'>"
+					+ "<img id=polly src='/images/parrot.png' alt='Fun parrot character' style='float:left; margin-left:50px'>"
 					+ "</div>");
 			break;
 		case 1:  // partially correct answer

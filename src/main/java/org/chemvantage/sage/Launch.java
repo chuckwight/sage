@@ -30,8 +30,8 @@ public class Launch extends HttpServlet {
 	public void doGet(HttpServletRequest request,HttpServletResponse response)
 			throws ServletException, IOException {
 		
-		PrintWriter out = response.getWriter();
-		response.setContentType("text/html");
+		//PrintWriter out = response.getWriter();
+		//response.setContentType("text/html");
 		
 		// This method permits login using a valid tokenized link
 		
@@ -41,7 +41,8 @@ public class Launch extends HttpServlet {
 			request.getSession().setAttribute("hashedId", hashedId);
 			response.sendRedirect("/sage");
 		} catch (Exception e) {
-			out.println("Error: " + e.getMessage()==null?e.toString():e.getMessage());
+			response.sendRedirect("/");
+			//out.println("Error: " + e.getMessage()==null?e.toString():e.getMessage());
 		}
 	}
 	
@@ -86,7 +87,8 @@ public class Launch extends HttpServlet {
 				out.println(freeTrial(user));
 			}
 		} catch (Exception e) {
-			out.println("Error: " + e.getMessage()==null?e.toString():e.getMessage());
+			response.sendRedirect("/");
+			//out.println("Error: " + e.getMessage()==null?e.toString():e.getMessage());
 		}
 	}
 

@@ -1,2 +1,22 @@
 runtime: java17
 instance_class: F1
+
+handlers:
+
+# Map everything in the web app directory to static copies  
+- url: /webapp
+  static_dir: classes/META-INF/resources
+  require_matching_file: True
+  secure: always
+
+# All requests to the following URLs are restricted to admins or service accounts
+- url: /(concepts|questions)
+  secure: always
+  login: admin
+  script: auto
+
+# All other requests must be secure (TLS)
+- url: /.*
+  secure: always
+  redirect_http_response_code: 301
+  script: auto
