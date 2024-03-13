@@ -120,7 +120,7 @@ public class Sage extends HttpServlet {
 			buf.append("<h2>" + c.title + "</h2>"
 					+ "<div style='max-width:800px'>"
 					+ "<img src=/images/sage.png alt='Confucius Parrot' style='float:right;margin:20px;'>"
-					+ c.summary + "<p>"
+					+ c.summary==null?ConceptManager.getConceptSummary(c):c.summary + "<p>"
 					+ "<a class=btn role=button href='/sage'>Continue</a>"
 					+ "</div>");
 
