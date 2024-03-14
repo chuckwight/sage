@@ -54,7 +54,8 @@ public class Sage extends HttpServlet {
 				out.println(start(hashedId,s));
 			} else {
 				boolean help = Boolean.parseBoolean(request.getParameter("Help"));
-				int parameter = Integer.parseInt(request.getParameter("p"));
+				int parameter = 0;
+				if (request.getParameter("p") != null) parameter = Integer.parseInt(request.getParameter("p"));
 				if (help && !s.gotHelp) {
 					s.gotHelp = true;
 					ofy().save().entity(s).now();
