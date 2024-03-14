@@ -63,7 +63,8 @@ public class Sage extends HttpServlet {
 				out.println(poseQuestion(s,help,parameter));
 			}
 		} catch (Exception e) {
-			out.println(Util.head + "Error: " + e.getMessage()==null?e.toString():e.getMessage() + Util.foot);
+			response.sendRedirect("/");
+			//out.println(Util.head + "Error: " + e.getMessage()==null?e.toString():e.getMessage() + Util.foot);
 		}
 	}
 	
@@ -91,7 +92,8 @@ public class Sage extends HttpServlet {
 			ofy().save().entity(s).now();
 			out.println(printScore(questionScore,s,level_up));
 		} catch (Exception e) {
-			out.println(Util.head + "Error: " + e.getMessage()==null?e.toString():e.getMessage() + Util.foot);	
+			response.sendRedirect("/");
+			//out.println(Util.head + "Error: " + e.getMessage()==null?e.toString():e.getMessage() + Util.foot);	
 		}
 	}
 	
