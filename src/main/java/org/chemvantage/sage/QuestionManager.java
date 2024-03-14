@@ -63,13 +63,15 @@ public class QuestionManager extends HttpServlet {
 					q.setParameters();
 					buf.append("<tr><td style='width:400px;'>"
 							+ q.printAll()
-							+ "</td><td style='vertical-align:top;'>easy"
+							+ "</td><td style='vertical-align:top;'>"
+							+ "<div style='border-style:solid'> easy "
 							+ "<span" + (q.difficulty!=null&&q.difficulty==1?" style='background-color:#90EE90'":"") + "><input type=radio name='difficulty" + q.id + "' value=1> </span>"
 							+ "<span" + (q.difficulty!=null&&q.difficulty==2?" style='background-color:#90EE90'":"") + "><input type=radio name='difficulty" + q.id + "' value=2> </span>"
 							+ "<span" + (q.difficulty!=null&&q.difficulty==3?" style='background-color:#90EE90'":"") + "><input type=radio name='difficulty" + q.id + "' value=3> </span>"
 							+ "<span" + (q.difficulty!=null&&q.difficulty==4?" style='background-color:#90EE90'":"") + "><input type=radio name='difficulty" + q.id + "' value=4> </span>"
 							+ "<span" + (q.difficulty!=null&&q.difficulty==5?" style='background-color:#90EE90'":"") + "><input type=radio name='difficulty" + q.id + "' value=5> </span>"
-							+ "hard</td></tr>"
+							+ " hard "
+							+ "</div></td></tr>"
 							+ "<tr><td colspan=2><hr></td</tr>");
 				}
 				buf.append("</table>"

@@ -49,7 +49,7 @@ public class Question implements Serializable, Cloneable {
 			String correctAnswer;
 			String tag;
 			int pointValue=1;
-			Integer difficulty;  // null or 1 to 5
+	@Index	Integer difficulty;  // null or 1 to 5
 			String parameterString;
 			String solution;
 			String authorId;
