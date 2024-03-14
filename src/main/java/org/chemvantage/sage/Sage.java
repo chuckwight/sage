@@ -54,11 +54,12 @@ public class Sage extends HttpServlet {
 				out.println(start(hashedId,s));
 			} else {
 				boolean help = Boolean.parseBoolean(request.getParameter("Help"));
+				int parameter = Integer.parseInt(request.getParameter("p"));
 				if (help && !s.gotHelp) {
 					s.gotHelp = true;
 					ofy().save().entity(s).now();
 				}
-				out.println(poseQuestion(hashedId,s,help));
+				out.println(poseQuestion(s,help,parameter));
 			}
 		} catch (Exception e) {
 			out.println(Util.head + "Error: " + e.getMessage()==null?e.toString():e.getMessage() + Util.foot);
@@ -130,13 +131,15 @@ public class Sage extends HttpServlet {
 		return buf.toString() + Util.foot;
 	}
 	
-	static String poseQuestion(String hashedId, Score s, boolean help) throws Exception {
+	static String poseQuestion(Score s, boolean help, int p) throws Exception {
 		StringBuffer buf = new StringBuffer(Util.head);
 		try {
 			if (conceptMap == null) refreshConcepts();
 			Concept c = conceptMap.get(s.conceptId);
 			Question q = ofy().load().type(Question.class).id(s.questionId).now();
-			
+			if (p==0) p = new Random().nextInt();
+			q.setParameters(p);
+
 			buf.append("<h1>" + c.title + "</h1>");
 			
 			buf.append("<div style='width:800px; height=300px; overflow=auto; display:flex; align-items:center;'>");
@@ -149,7 +152,7 @@ public class Sage extends HttpServlet {
 				buf.append("<div>"
 						+ "Please submit your answer to the question below.<p>"
 						+ "If you get stuck, I am here to help you, but your score will be higher if you do it by yourself.<p>"
-						+ "<a id=help class=btn role=button href=/sage?Help=true onclick=waitForHelp()>Please help me with this question</a>"
+						+ "<a id=help class=btn role=button href=/sage?Help=true&p=" + p + " onclick=waitForHelp()>Please help me with this question</a>"
 						+ "</div>"
 						+ "<img src=/images/sage.png alt='Confucius Parrot' style='float:right'>");
 			}
@@ -164,9 +167,6 @@ public class Sage extends HttpServlet {
 					+ "</script>");
 			
 			buf.append("<hr style='width:800px;margin-left:0'>");  // break between Sage helper panel and question panel
-
-			int p = new Random().nextInt();
-			q.setParameters(p);
 
 			// Print the question for the student
 			buf.append("<form method=post onsubmit='waitForScore();' >"
