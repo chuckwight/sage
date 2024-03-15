@@ -11,9 +11,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import org.chemvantage.Question;
-import org.chemvantage.User;
-
 import com.googlecode.objectify.Key;
 
 import jakarta.servlet.ServletException;
@@ -38,8 +35,6 @@ public class QuestionManager extends HttpServlet {
 		String userRequest = request.getParameter("UserRequest");
 		if (userRequest == null) userRequest = "";
 		
-		StringBuffer buf = new StringBuffer(Util.head);
-		
 		try {
 			switch (userRequest) {
 			case "EditQuestion":
@@ -48,6 +43,10 @@ public class QuestionManager extends HttpServlet {
 					questionId = Long.parseLong(request.getParameter("QuestionId")); 
 					out.println(editQuestion(questionId));
 				} catch (Exception e) {}
+				break;
+			case "NewQuestion": 
+				out.println(newQuestionForm(request)); 
+				break;
 			default:
 				Long conceptId = null;
 				try { 
@@ -57,10 +56,8 @@ public class QuestionManager extends HttpServlet {
 			}
 
 		} catch (Exception e) {
-			buf.append("<p>Error: " + e.getMessage()==null?e.toString():e.getMessage());
+			response.getWriter().println(e.getMessage()==null?e.toString():e.getMessage());
 		}
-
-		out.println(Util.head + buf.toString() + Util.foot);
 	}
 		
 	public void doPost(HttpServletRequest request,HttpServletResponse response)
@@ -91,21 +88,7 @@ public class QuestionManager extends HttpServlet {
 		doGet(request,response);
 	}
 	
-	static void refreshConcepts() {
-		conceptList = ofy().load().type(Concept.class).order("orderBy").list();
-		conceptMap = new HashMap<Long,Concept>();
-		for (Concept c : conceptList) conceptMap.put(c.id, c);
-	}
-
-	static 	private void createQuestion(User user,HttpServletRequest request) { //previously type long
-		try {
-			Question q = assembleQuestion(request);
-			q.isActive = true;
-			ofy().save().entity(q).now();
-	} catch (Exception e) {}
-	}
-
-	static 	private Question assembleQuestion(HttpServletRequest request) {
+	static Question assembleQuestion(HttpServletRequest request) {
 		try {
 			int questionType = Integer.parseInt(request.getParameter("QuestionType"));
 			return assembleQuestion(request,new Question(questionType)); 
@@ -114,13 +97,11 @@ public class QuestionManager extends HttpServlet {
 		}
 	}
 	
-	private Question assembleQuestion(HttpServletRequest request,Question q) {
-		int questionType = Integer.parseInt(request.getParameter("QuestionType"));
+	static Question assembleQuestion(HttpServletRequest request,Question q) {
 		long conceptId = 0;
 		try {
 			conceptId = Long.parseLong(request.getParameter("ConceptId"));
 		} catch (Exception e) {}
-		String learn_more_url = request.getParameter("LearnMoreURL");
 		int type = q.getQuestionType();
 		try {
 			type = Integer.parseInt(request.getParameter("QuestionType"));
@@ -163,10 +144,7 @@ public class QuestionManager extends HttpServlet {
 		String parameterString = request.getParameter("ParameterString");
 		if (parameterString == null) parameterString = "";
 		
-		q.assignmentType = assignmentType;
-		q.topicId = topicId;
 		q.conceptId = conceptId;
-		q.learn_more_url = learn_more_url;
 		q.setQuestionType(type);
 		q.text = questionText;
 		q.nChoices = nChoices;
@@ -177,7 +155,6 @@ public class QuestionManager extends HttpServlet {
 		q.tag = request.getParameter("QuestionTag");
 		q.pointValue = pointValue;
 		q.parameterString = parameterString;
-		q.hint = request.getParameter("Hint");
 		q.solution = request.getParameter("Solution");
 		q.notes = "";
 		q.authorId = request.getParameter("AuthorId");
@@ -189,62 +166,33 @@ public class QuestionManager extends HttpServlet {
 	}
 	
 	
-	static String viewQuestions(Long conceptId) throws Exception {
-		StringBuffer buf = new StringBuffer(Util.head);
-
-		buf.append("<h1>Manage Question Items</h1>");
-		
-		if (conceptMap == null) refreshConcepts();
-		Concept concept = conceptMap.get(conceptId);
-		
-		buf.append("\n<form id='conceptselector' method=get>Select a concept: "
-				+ "<select name=ConceptId onchange='submit();' >"
-				+ "<option>Select a concept</option>");
-		for (Concept c : conceptList) buf.append("<option value='" + c.id + (c.id.equals(conceptId)?"' selected >":"' >") + c.title + "</option>\n");
-		buf.append("</select></form>");
-		
-		if (concept != null) {
-			buf.append("<h4>" + concept.title + "</h4>");
-			List<Question> questions = ofy().load().type(Question.class).filter("conceptId",conceptId).list();
-			
-			buf.append("This concept has " + questions.size() + " question items. ");
-			int[] nQuestions = new int[6];
-			nQuestions[0] = questions.size();  // total
-			buf.append("Difficulty Levels (1-5):&nbsp;<span style='border-style:solid;'>");
-			for (int i=1;i<6;i++) {  // for each level of difficulty
-				nQuestions[i] = ofy().load().type(Question.class).filter("conceptId",concept.id).filter("difficulty",i).count();
-				buf.append(nQuestions[i] + (i<5?"&nbsp;|&nbsp;":"&nbsp;"));
-				nQuestions[0] -= nQuestions[i];
-			}
-			buf.append("</span>&nbsp;Unclassified: " + nQuestions[0] + "<p>");
-			
-			buf.append("<form method=post>"
-					+ "<input type=submit name=UserRequest value='Save Difficulty'/>"
-					+ "<table>");
-			for (Question q : questions) {
-				q.setParameters();
-				buf.append("<tr><td style='width:400px;'>"
-						+ q.printAll()
-						+ "</td><td style='text-align:center;vertical-align:top;'>"
-						+ "<div style='border-style:solid'> easy "
-						+ "<span" + (q.difficulty!=null&&q.difficulty==1?" style='background-color:#90EE90'":"") + "><input type=radio name='difficulty" + q.id + "' value=1> </span>"
-						+ "<span" + (q.difficulty!=null&&q.difficulty==2?" style='background-color:#90EE90'":"") + "><input type=radio name='difficulty" + q.id + "' value=2> </span>"
-						+ "<span" + (q.difficulty!=null&&q.difficulty==3?" style='background-color:#90EE90'":"") + "><input type=radio name='difficulty" + q.id + "' value=3> </span>"
-						+ "<span" + (q.difficulty!=null&&q.difficulty==4?" style='background-color:#90EE90'":"") + "><input type=radio name='difficulty" + q.id + "' value=4> </span>"
-						+ "<span" + (q.difficulty!=null&&q.difficulty==5?" style='background-color:#90EE90'":"") + "><input type=radio name='difficulty" + q.id + "' value=5> </span>"
-						+ " hard "
-						+ "</div><p>"
-						+ "<a href=/?UserRequest=Edit&qid=" + q.id + "><button>Edit</button></a>&nbsp;"
-						+ "</td></tr>"
-						+ "<tr><td colspan=2><hr></td</tr>");
-			}
-			buf.append("</table>"
-					+ "<input type=submit name=UserRequest value='Save Difficulty'/>"
-					+ "</form>");
-		}
-		return buf.toString() + Util.foot;
+	static String conceptSelectBox(Long conceptId) {
+		StringBuffer buf = new StringBuffer("<select name=ConceptId>");
+		if (conceptList == null) refreshConcepts();
+		for (Concept c : conceptList) buf.append("<option value=" + c.id + (c.id.equals(conceptId)?" selected>":">") + c.title + "</option>");
+		buf.append("</select>");
+		return buf.toString();
 	}
 	
+	static void createQuestion(HttpServletRequest request) { //previously type long
+		try {
+			Question q = assembleQuestion(request);
+			q.isActive = true;
+			ofy().save().entity(q).now();
+	} catch (Exception e) {}
+	}
+
+	static void deleteQuestion(HttpServletRequest request) {
+		long questionId = 0;
+		try {
+			questionId = Long.parseLong(request.getParameter("QuestionId"));
+			Key<Question> k = key(Question.class,questionId);
+			ofy().delete().key(k).now();
+		} catch (Exception e) {
+			return;
+		}
+	}
+
 	static String editQuestion(Long questionId) throws Exception {
 		StringBuffer buf = new StringBuffer(Util.head);
 		
@@ -286,15 +234,63 @@ public class QuestionManager extends HttpServlet {
 	
 		return buf.toString() + Util.foot;
 	}
+
+	static String newQuestionForm(HttpServletRequest request) {
+		StringBuffer buf = new StringBuffer("<h1>Edit</h1><h2>New Question</h2>");
+		Long conceptId = null;
+		try {
+			conceptId = Long.parseLong(request.getParameter("ConceptId"));
+		} catch (Exception e) {}		
 		
-	static String conceptSelectBox(Long conceptId) {
-		StringBuffer buf = new StringBuffer("<select name=ConceptId>");
-		if (conceptList == null) refreshConcepts();
-		for (Concept c : conceptList) buf.append("<option value=" + c.id + (c.id.equals(conceptId)?" selected>":">") + c.title + "</option>");
-		buf.append("</select>");
+		int questionType = 0;
+		try {
+			questionType = Integer.parseInt(request.getParameter("QuestionType"));
+			switch (questionType) {
+			case (1): buf.append("<h3>Multiple-Choice Question</h3>");
+			buf.append("Fill in the question text and the possible answers "
+					+ "(up to a maximum of 5). Be sure to select the single best "
+					+ "answer to the question."); break;
+			case (2): buf.append("<h3>True-False Question</h3>");
+			buf.append("Write the question as an affirmative statement. Then "
+					+ "indicate below whether the statement is true or false."); break;
+			case (3): buf.append("<h3>Select-Multiple Question</h3>");
+			buf.append("Fill in the question text and the possible answers "
+					+ "(up to a maximum of 5). Be sure to "
+					+ "select all of the correct answers to the question."); break;
+			case (4): buf.append("<h3>Fill-in-Word Question</h3>");
+			buf.append("Start the question text in the upper textarea box. Indicate "
+					+ "the correct answer (and optionally, an alternative correct answer) in "
+					+ "the middle boxes, and the end of the question text below that.  The answers "
+					+ "are not case-sensitive or punctuation-sensitive, but spelling must "
+					+ "be exact."); break;
+			case (5): buf.append("<h3>Numeric Question</h3>");
+			buf.append("Fill in the question text in the upper textarea box and "
+					+ "the correct numeric answer below. Also indicate the required precision "
+					+ "of the student's response in percent (default = 2%). Use the bottom "
+					+ "textarea box to finish the question text and/or to indicate the "
+					+ "expected dimensions or units of the student's answer."); break;
+			case (6): buf.append("<h3>Five Star Question</h3>");
+			buf.append("Fill in the question text. The user will be asked to provide a rating "
+					+ "from 1 to 5 stars."); break;
+			case (7): buf.append("<h3>EssayQuestion</h3>");
+			buf.append("Fill in the question text. The user will be asked to provide a short "
+					+ "essay response."); break;
+			default: buf.append("An unexpected error occurred. Please try again.");
+			}
+			Question question = new Question(questionType);
+			buf.append("<p><FORM METHOD=POST ACTION=Edit>");
+			buf.append("<INPUT TYPE=HIDDEN NAME=QuestionType VALUE=" + questionType + ">");
+			
+			buf.append("Concept: " + conceptSelectBox(conceptId) + "<br>");
+			
+			buf.append(question.edit());
+			buf.append("<INPUT TYPE=SUBMIT NAME=UserRequest VALUE='Preview'></FORM>");
+		} catch (Exception e) {
+			return buf.toString() + "<br>" + e.getMessage();
+		}
 		return buf.toString();
 	}
-	
+
 	static 	String questionTypeDropDownBox(int questionType) {
 		StringBuffer buf = new StringBuffer();
 		buf.append("\n<SELECT NAME=QuestionType>"
@@ -309,6 +305,12 @@ public class QuestionManager extends HttpServlet {
 		return buf.toString();
 	}
 	
+	static void refreshConcepts() {
+		conceptList = ofy().load().type(Concept.class).order("orderBy").list();
+		conceptMap = new HashMap<Long,Concept>();
+		for (Concept c : conceptList) conceptMap.put(c.id, c);
+	}
+
 	static void saveQuestions(HttpServletRequest request) throws Exception {
 		// Make a List of question keys for the submission and a Map of the difficulty values
 		List<Key<Question>> questionKeys = new ArrayList<Key<Question>>();
@@ -335,5 +337,78 @@ public class QuestionManager extends HttpServlet {
 		
 		// Save the questions
 		ofy().save().entities(questions.values()).now();
+	}
+
+	static void updateQuestion(HttpServletRequest request) {
+		long questionId = 0;
+		try {
+			questionId = Long.parseLong(request.getParameter("QuestionId"));	
+			Question q = ofy().load().type(Question.class).id(questionId).safe();
+			q = assembleQuestion(request,q);
+			q.isActive = true;
+			ofy().save().entity(q).now();
+		} catch (Exception e) {
+			return;
+		}
+	}
+
+	static String viewQuestions(Long conceptId) throws Exception {
+		StringBuffer buf = new StringBuffer(Util.head);
+	
+		buf.append("<h1>Manage Question Items</h1>");
+		
+		if (conceptMap == null) refreshConcepts();		
+		Concept concept = conceptMap.get(conceptId);
+		
+		buf.append("\n<form id='conceptselector' method=get>Select a concept: "
+				+ "<select name=ConceptId onchange='submit();' >"
+				+ "<option>Select a concept</option>");
+		for (Concept c : conceptList) buf.append("<option value='" + c.id + (c.id.equals(conceptId)?"' selected >":"' >") + c.title + "</option>\n");
+		buf.append("</select></form>");
+		
+		if (concept != null) {
+			buf.append("<h4>" + concept.title + "</h4>");
+			List<Question> questions = ofy().load().type(Question.class).filter("conceptId",conceptId).list();
+			
+			buf.append("This concept has " + questions.size() + " question items. ");
+			int[] nQuestions = new int[6];
+			nQuestions[0] = questions.size();  // total
+			buf.append("Difficulty Levels (1-5):&nbsp;<span style='border-style:solid;'>");
+			for (int i=1;i<6;i++) {  // for each level of difficulty
+				nQuestions[i] = ofy().load().type(Question.class).filter("conceptId",concept.id).filter("difficulty",i).count();
+				buf.append(nQuestions[i] + (i<5?"&nbsp;|&nbsp;":"&nbsp;"));
+				nQuestions[0] -= nQuestions[i];
+			}
+			buf.append("</span>&nbsp;Unclassified: " + nQuestions[0]);
+			
+			// Add a button to create a new question item:
+			buf.append("&nbsp;<a href=/?UserRequest=NewQuestion&ConceptId=" + concept.id + "><button>Create a New Question</button></a><p>");
+			
+			buf.append("<form method=post>"
+					+ "<input type=submit name=UserRequest value='Save Difficulty'/>"
+					+ "<table>");
+			for (Question q : questions) {
+				q.setParameters();
+				buf.append("<tr><td style='width:400px;'>"
+						+ q.printAll()
+						+ "</td><td style='text-align:center;vertical-align:top;'>"
+						+ "<div style='border-style:solid'> easy "
+						+ "<span" + (q.difficulty!=null&&q.difficulty==1?" style='background-color:#90EE90'":"") + "><input type=radio name='difficulty" + q.id + "' value=1> </span>"
+						+ "<span" + (q.difficulty!=null&&q.difficulty==2?" style='background-color:#90EE90'":"") + "><input type=radio name='difficulty" + q.id + "' value=2> </span>"
+						+ "<span" + (q.difficulty!=null&&q.difficulty==3?" style='background-color:#90EE90'":"") + "><input type=radio name='difficulty" + q.id + "' value=3> </span>"
+						+ "<span" + (q.difficulty!=null&&q.difficulty==4?" style='background-color:#90EE90'":"") + "><input type=radio name='difficulty" + q.id + "' value=4> </span>"
+						+ "<span" + (q.difficulty!=null&&q.difficulty==5?" style='background-color:#90EE90'":"") + "><input type=radio name='difficulty" + q.id + "' value=5> </span>"
+						+ " hard "
+						+ "</div><p>"
+						+ "<a href=/?UserRequest=EditQuestion&QuestionId=" + q.id + "><button>Edit</button></a>&nbsp;"
+						+ "</td></tr>"
+						+ "<tr><td colspan=2><hr></td</tr>");
+			}
+			buf.append("</table>"
+					+ "<input type=submit name=UserRequest value='Save Difficulty'/>"
+					+ "</form>");
+		}
+		
+		return buf.toString() + Util.foot;
 	}
 }
