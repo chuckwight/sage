@@ -33,6 +33,11 @@ public class ConceptManager extends HttpServlet {
 		PrintWriter out = response.getWriter();
 		response.setContentType("text/html");
 		
+		if (!Util.projectId.equals("sage-416602")) {
+			out.println("Bad project configuration.");
+			return;
+		}
+		
 		StringBuffer buf = new StringBuffer(Util.head);
 		
 		Concept c1 = null;

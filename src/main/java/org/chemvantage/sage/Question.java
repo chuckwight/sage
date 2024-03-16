@@ -692,6 +692,11 @@ public class Question implements Serializable, Cloneable {
 		this.nCorrectAnswers += nCorrect;
 	}
 	
+	public String getDifficulty() {
+		if (difficulty == null) return "unclassified";
+		else return String.valueOf(difficulty);
+	}
+	
 	public String getSuccess() {
 		if (nTotalAttempts==null) initializeCounters();
 		return String.valueOf(nCorrectAnswers) + "/" + String.valueOf(nTotalAttempts) + "<br/>(" + getPctSuccess() + "%)";

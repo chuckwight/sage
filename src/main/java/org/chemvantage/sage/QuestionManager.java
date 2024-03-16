@@ -32,6 +32,11 @@ public class QuestionManager extends HttpServlet {
 		PrintWriter out = response.getWriter();
 		response.setContentType("text/html");
 		
+		if (!Util.projectId.equals("sage-416602")) {
+			out.println("Bad project configuration.");
+			return;
+		}
+		
 		String userRequest = request.getParameter("UserRequest");
 		if (userRequest == null) userRequest = "";
 		
@@ -69,7 +74,6 @@ public class QuestionManager extends HttpServlet {
 			switch (userRequest) {
 			case "Save Difficulty":
 				saveQuestions(request);
-				doGet(request,response);
 				break;
 			case "Preview":
 				break;
@@ -188,14 +192,15 @@ public class QuestionManager extends HttpServlet {
 		ofy().delete().type(Question.class).id(questionId).now();
 	}
 
-	static String difficultyDropDownBox(int d) {
+	static String difficultyDropDownBox(String d) {
 		StringBuffer buf = new StringBuffer();
 		buf.append("<select name=Difficulty>"
-				+ "<option value=1 " + (d==1?"selected":"") + ">1</option>"
-				+ "<option value=2 " + (d==2?"selected":"") + ">2</option>"
-				+ "<option value=3 " + (d==3?"selected":"") + ">3</option>"
-				+ "<option value=4 " + (d==4?"selected":"") + ">4</option>"
-				+ "<option value=5 " + (d==5?"selected":"") + ">5</option>");
+				+ "<option value=1 " + ("1".equals(d)?"selected":"") + ">1</option>"
+				+ "<option value=2 " + ("2".equals(d)?"selected":"") + ">2</option>"
+				+ "<option value=3 " + ("3".equals(d)?"selected":"") + ">3</option>"
+				+ "<option value=4 " + ("4".equals(d)?"selected":"") + ">4</option>"
+				+ "<option value=5 " + ("5".equals(d)?"selected":"") + ">5</option>"
+				+ "</select>");
 		return buf.toString();
 	}
 	
@@ -213,7 +218,7 @@ public class QuestionManager extends HttpServlet {
 		buf.append("Concept: " + (c==null?"n/a":c.title) + "<br/>");
 		
 		buf.append("Success Rate: " + q.getSuccess() + "<br>"
-				+ "Difficulty Level: " + q.difficulty + "<p>");
+				+ "Difficulty Level: " + q.getDifficulty() + "<p>");
 		
 		buf.append("<FORM Action=/questions METHOD=POST>");
 		
@@ -233,7 +238,7 @@ public class QuestionManager extends HttpServlet {
 		
 		buf.append("Question Type:" + questionTypeDropDownBox(q.getQuestionType()) + "<br/>");
 		
-		buf.append("Difficulty Level: " + difficultyDropDownBox(q.difficulty) + "<br/>");
+		buf.append("Difficulty Level: " + difficultyDropDownBox(q.getDifficulty()) + "<p>");
 		
 		buf.append(q.edit());
 		
@@ -471,7 +476,7 @@ static 	String questionTypeDropDownBox(int questionType) {
 				buf.append("<tr><td style='width:400px;'>"
 						+ q.printAll()
 						+ "</td><td style='text-align:center;vertical-align:top;'>"
-						+ "<div style='border-style:solid'> easy "
+						+ "<div style='border-style:solid;" + (q.difficulty==null?"border-color:red;":"") + "'> easy "
 						+ "<span" + (q.difficulty!=null&&q.difficulty==1?" style='background-color:#90EE90'":"") + "><input type=radio name='difficulty" + q.id + "' value=1> </span>"
 						+ "<span" + (q.difficulty!=null&&q.difficulty==2?" style='background-color:#90EE90'":"") + "><input type=radio name='difficulty" + q.id + "' value=2> </span>"
 						+ "<span" + (q.difficulty!=null&&q.difficulty==3?" style='background-color:#90EE90'":"") + "><input type=radio name='difficulty" + q.id + "' value=3> </span>"
