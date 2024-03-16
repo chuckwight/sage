@@ -39,22 +39,21 @@ public class QuestionManager extends HttpServlet {
 			switch (userRequest) {
 			case "EditQuestion":
 				Long questionId = null;
-				try { 
-					questionId = Long.parseLong(request.getParameter("QuestionId")); 
-					out.println(editQuestion(questionId));
-				} catch (Exception e) {}
+				questionId = Long.parseLong(request.getParameter("QuestionId")); 
+				out.println(editQuestion(questionId));
 				break;
 			case "NewQuestion": 
 				out.println(newQuestionForm(request)); 
 				break;
+			case "Preview":
+				out.println(previewQuestion(request));
 			default:
 				Long conceptId = null;
-				try { 
+				try {
 					conceptId = Long.parseLong(request.getParameter("ConceptId")); 
 				} catch (Exception e) {}
 				out.println(viewQuestions(conceptId));
 			}
-
 		} catch (Exception e) {
 			response.getWriter().println(e.getMessage()==null?e.toString():e.getMessage());
 		}
@@ -71,6 +70,8 @@ public class QuestionManager extends HttpServlet {
 			case "Save Difficulty":
 				saveQuestions(request);
 				doGet(request,response);
+				break;
+			case "Preview":
 				break;
 			case "Save New Question":
 				createQuestion(request);
@@ -121,9 +122,9 @@ public class QuestionManager extends HttpServlet {
 		}
 		double requiredPrecision = 0.; // percent
 		int significantFigures = 0;
-		int pointValue = 1;
+		int difficulty = 1;
 		try {
-			pointValue = Integer.parseInt(request.getParameter("PointValue"));
+			difficulty = Integer.parseInt(request.getParameter("Difficulty"));
 		} catch (Exception e) {
 		}
 		try {
@@ -153,7 +154,7 @@ public class QuestionManager extends HttpServlet {
 		q.significantFigures = significantFigures;
 		q.correctAnswer = correctAnswer;
 		q.tag = request.getParameter("QuestionTag");
-		q.pointValue = pointValue;
+		q.difficulty = difficulty;
 		q.parameterString = parameterString;
 		q.solution = request.getParameter("Solution");
 		q.notes = "";
@@ -182,17 +183,23 @@ public class QuestionManager extends HttpServlet {
 	} catch (Exception e) {}
 	}
 
-	static void deleteQuestion(HttpServletRequest request) {
-		long questionId = 0;
-		try {
-			questionId = Long.parseLong(request.getParameter("QuestionId"));
-			Key<Question> k = key(Question.class,questionId);
-			ofy().delete().key(k).now();
-		} catch (Exception e) {
-			return;
-		}
+	static void deleteQuestion(HttpServletRequest request) throws Exception {
+		Long questionId = Long.parseLong(request.getParameter("QuestionId"));
+		ofy().delete().type(Question.class).id(questionId).now();
 	}
 
+	static String difficultyDropDownBox(int d) {
+		StringBuffer buf = new StringBuffer();
+		buf.append("<select name=Difficulty>"
+				+ "<option value=1 " + (d==1?"selected":"") + ">1</option>"
+				+ "<option value=2 " + (d==2?"selected":"") + ">2</option>"
+				+ "<option value=3 " + (d==3?"selected":"") + ">3</option>"
+				+ "<option value=4 " + (d==4?"selected":"") + ">4</option>"
+				+ "<option value=5 " + (d==5?"selected":"") + ">5</option>");
+		return buf.toString();
+	}
+	
+		
 	static String editQuestion(Long questionId) throws Exception {
 		StringBuffer buf = new StringBuffer(Util.head);
 		
@@ -204,12 +211,11 @@ public class QuestionManager extends HttpServlet {
 		if (q.requiresParser()) q.setParameters();
 		buf.append("<h1>Edit</h1><h2>Current Question</h2>");
 		buf.append("Concept: " + (c==null?"n/a":c.title) + "<br/>");
-		buf.append("Author: " + q.authorId + "<br>");
-		buf.append("Editor: " + q.editorId + "<br>");
 		
-		buf.append("Success Rate: " + q.getSuccess() + "<p>");
+		buf.append("Success Rate: " + q.getSuccess() + "<br>"
+				+ "Difficulty Level: " + q.difficulty + "<p>");
 		
-		buf.append("<FORM Action=/Edit METHOD=POST>");
+		buf.append("<FORM Action=/questions METHOD=POST>");
 		
 		buf.append(q.printAll());
 		
@@ -225,7 +231,9 @@ public class QuestionManager extends HttpServlet {
 		
 		buf.append("Concept:" + conceptSelectBox(q.conceptId) + "<br/>");
 		
-		buf.append("Question Type:" + questionTypeDropDownBox(q.getQuestionType()));
+		buf.append("Question Type:" + questionTypeDropDownBox(q.getQuestionType()) + "<br/>");
+		
+		buf.append("Difficulty Level: " + difficultyDropDownBox(q.difficulty) + "<br/>");
 		
 		buf.append(q.edit());
 		
@@ -236,13 +244,15 @@ public class QuestionManager extends HttpServlet {
 	}
 
 	static String newQuestionForm(HttpServletRequest request) {
-		StringBuffer buf = new StringBuffer("<h1>Edit</h1><h2>New Question</h2>");
+		StringBuffer buf = new StringBuffer(Util.head);
+		
+		buf.append("<h1>Edit</h1><h2>New Question</h2>");
 		Long conceptId = null;
 		try {
 			conceptId = Long.parseLong(request.getParameter("ConceptId"));
 		} catch (Exception e) {}		
 		
-		int questionType = 0;
+		int questionType = 0;		
 		try {
 			questionType = Integer.parseInt(request.getParameter("QuestionType"));
 			switch (questionType) {
@@ -278,7 +288,7 @@ public class QuestionManager extends HttpServlet {
 			default: buf.append("An unexpected error occurred. Please try again.");
 			}
 			Question question = new Question(questionType);
-			buf.append("<p><FORM METHOD=POST ACTION=Edit>");
+			buf.append("<p><FORM METHOD=POST ACTION=/questions>");
 			buf.append("<INPUT TYPE=HIDDEN NAME=QuestionType VALUE=" + questionType + ">");
 			
 			buf.append("Concept: " + conceptSelectBox(conceptId) + "<br>");
@@ -286,12 +296,81 @@ public class QuestionManager extends HttpServlet {
 			buf.append(question.edit());
 			buf.append("<INPUT TYPE=SUBMIT NAME=UserRequest VALUE='Preview'></FORM>");
 		} catch (Exception e) {
-			return buf.toString() + "<br>" + e.getMessage();
+			buf.append("<form method=get>"
+					+ "<input type=hidden name=UserRequest value='NewQuestion' />"
+					+ "<input type=hidden name=ConceptId value=" + conceptId + " />"
+					+ "Select a question type: " + questionTypeDropDownBox(0)
+					+ "<input type=submit value=Continue />"
+					+ "</form>");
 		}
-		return buf.toString();
+		return buf.toString() + Util.foot;
 	}
 
-	static 	String questionTypeDropDownBox(int questionType) {
+	static String previewQuestion(HttpServletRequest request) {
+		StringBuffer buf = new StringBuffer(Util.head);
+		try {
+			long questionId = 0;
+			boolean current = false;
+			boolean proposed = false;
+			try {
+				questionId = Long.parseLong(request.getParameter("QuestionId"));
+				current = true;
+			} catch (Exception e2) {}
+			long proposedQuestionId = 0;
+			try {
+				proposedQuestionId = Long.parseLong(request.getParameter("ProposedQuestionId"));
+				proposed = true;
+				current = false;
+			} catch (Exception e2) {}
+			
+			Long conceptId = null;
+			try {
+				conceptId = Long.parseLong(request.getParameter("ConceptId"));
+			} catch (Exception e) {}
+			
+			Question q = assembleQuestion(request);
+			if (q.requiresParser()) q.setParameters();
+			
+			buf.append("<h1>Edit</h1><h2>Preview Question</h2>");
+			
+			Concept c = conceptId==null?null:ofy().load().type(Concept.class).id(conceptId).now();
+			buf.append("Concept: " + (c==null?"n/a":c.title) + "<br/>");
+			
+			buf.append("Author: " + q.authorId + "<br>");
+			
+			buf.append("<FORM ACTION=/questions METHOD=POST>");
+			
+			buf.append(q.printAll());
+			
+			if (q.authorId==null) q.authorId="";
+			buf.append("<INPUT TYPE=HIDDEN NAME=AuthorId VALUE='" + q.authorId + "'>");
+			
+			if (current) {
+				buf.append("<INPUT TYPE=HIDDEN NAME=QuestionId VALUE=" + questionId + ">");
+				buf.append("<INPUT TYPE=SUBMIT NAME=UserRequest VALUE='Update Question'>");
+			}
+			if (proposed) {
+				buf.append("<INPUT TYPE=HIDDEN NAME=ProposedQuestionId VALUE=" + proposedQuestionId + ">");
+				buf.append("<INPUT TYPE=SUBMIT NAME=UserRequest VALUE='Activate This Question'>");
+			} else buf.append("<INPUT TYPE=SUBMIT NAME=UserRequest VALUE='Save New Question'>");
+			
+			buf.append("<INPUT TYPE=SUBMIT NAME=UserRequest VALUE='Quit'>");
+			
+			buf.append("<hr><h2>Continue Editing</h2>");
+			buf.append("Concept:" + conceptSelectBox(conceptId));
+			buf.append("Question Type:" + questionTypeDropDownBox(q.getQuestionType()));
+			
+			buf.append(q.edit());
+			
+			buf.append("<INPUT TYPE=SUBMIT NAME=UserRequest VALUE=Preview>");
+			buf.append("</FORM>");
+		} catch (Exception e) {
+			buf.append(e.toString());
+		}
+		return buf.toString() + Util.foot;
+	}
+
+static 	String questionTypeDropDownBox(int questionType) {
 		StringBuffer buf = new StringBuffer();
 		buf.append("\n<SELECT NAME=QuestionType>"
 				+ "<OPTION VALUE=1" + (questionType==1?" SELECTED>":">") + "Multiple Choice</OPTION>"
@@ -382,7 +461,7 @@ public class QuestionManager extends HttpServlet {
 			buf.append("</span>&nbsp;Unclassified: " + nQuestions[0]);
 			
 			// Add a button to create a new question item:
-			buf.append("&nbsp;<a href=/?UserRequest=NewQuestion&ConceptId=" + concept.id + "><button>Create a New Question</button></a><p>");
+			buf.append("&nbsp;<a href=/questions?UserRequest=NewQuestion&ConceptId=" + concept.id + ">Create a New Question</a><p>");
 			
 			buf.append("<form method=post>"
 					+ "<input type=submit name=UserRequest value='Save Difficulty'/>"
@@ -400,7 +479,7 @@ public class QuestionManager extends HttpServlet {
 						+ "<span" + (q.difficulty!=null&&q.difficulty==5?" style='background-color:#90EE90'":"") + "><input type=radio name='difficulty" + q.id + "' value=5> </span>"
 						+ " hard "
 						+ "</div><p>"
-						+ "<a href=/?UserRequest=EditQuestion&QuestionId=" + q.id + "><button>Edit</button></a>&nbsp;"
+						+ "<a class=btn role=button href='/questions?UserRequest=EditQuestion&QuestionId=" + q.id + "'>Edit</a>&nbsp;"
 						+ "</td></tr>"
 						+ "<tr><td colspan=2><hr></td</tr>");
 			}
