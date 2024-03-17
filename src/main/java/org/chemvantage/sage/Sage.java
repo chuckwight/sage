@@ -51,7 +51,7 @@ public class Sage extends HttpServlet {
 		try {
 			Score s = getScore(hashedId);
 			if (s.questionId == null) {  // user is starting a new Concept
-				out.println(start(hashedId,s));
+				out.println(start(hashedId));
 			} else {
 				boolean help = Boolean.parseBoolean(request.getParameter("Help"));
 				int parameter = 0;
@@ -64,7 +64,6 @@ public class Sage extends HttpServlet {
 			}
 		} catch (Exception e) {
 			response.sendRedirect("/");
-			//out.println(Util.head + "Error: " + e.getMessage()==null?e.toString():e.getMessage() + Util.foot);
 		}
 	}
 	
@@ -93,7 +92,6 @@ public class Sage extends HttpServlet {
 			out.println(printScore(questionScore,s,level_up));
 		} catch (Exception e) {
 			response.sendRedirect("/");
-			//out.println(Util.head + "Error: " + e.getMessage()==null?e.toString():e.getMessage() + Util.foot);	
 		}
 	}
 	
@@ -104,12 +102,9 @@ public class Sage extends HttpServlet {
 	}
 	
 	static String start(String hashedId) throws Exception {
-		return start(hashedId,getScore(hashedId));
-	}
-	
-	static String start(String hashedId, Score s) throws Exception {
 		StringBuffer buf = new StringBuffer(Util.head);
 		try {
+			Score s = getScore(hashedId);
 			if (conceptMap == null) refreshConcepts();
 			Concept c = conceptMap.get(s.conceptId);
 			

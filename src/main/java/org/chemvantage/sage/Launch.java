@@ -20,7 +20,6 @@ import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import jakarta.servlet.http.HttpSession;
 
 @WebServlet("/launch")
 public class Launch extends HttpServlet {
@@ -30,61 +29,67 @@ public class Launch extends HttpServlet {
 	public void doGet(HttpServletRequest request,HttpServletResponse response)
 			throws ServletException, IOException {
 		
-		//PrintWriter out = response.getWriter();
-		//response.setContentType("text/html");
+		/*
+		 * This method permits login using a valid tokenized link.
+		 */
+		PrintWriter out = response.getWriter();
+		response.setContentType("text/html");
 		
-		// This method permits login using a valid tokenized link
-		
-		try {
+		try {  // token login
 			String token = request.getParameter("Token");
 			String hashedId = validateToken(token);
-			request.getSession().setAttribute("hashedId", hashedId);
-			response.sendRedirect("/sage");
+			User user = null;
+			try {
+				user = ofy().load().type(User.class).id(hashedId).safe();
+			} catch (Exception e) {
+				user = new User(hashedId);
+				ofy().save().entity(user).now();
+			}
+			
+			Date now = new Date();
+			if (user.expires.before(now)) out.println(checkout(user));
+			else {
+				request.getSession().setAttribute("hashedId", hashedId);
+				response.sendRedirect("/sage");
+			}
 		} catch (Exception e) {
-			response.sendRedirect("/");
-			//out.println("Error: " + e.getMessage()==null?e.toString():e.getMessage());
+			response.sendRedirect("/");;
 		}
 	}
 	
 	public void doPost(HttpServletRequest request,HttpServletResponse response)
 			throws ServletException, IOException {
+		/*
+		 *  This method accepts the login form from index.html
+		 *  It determines which of 3 states the user is in:
+		 *  1) New - new user (not in the datastore)
+		 *  2) Expired - valid user with expired subscription
+		 *  3) Continuing - valid user with current subscription
+		 *  
+		 *  If the user has a current session with a matching hashedId
+		 *    - redirect to /sage
+		 *  Else send a 5-minute token to the email address containing the state
+		 */
 		
 		PrintWriter out = response.getWriter();
 		response.setContentType("text/html");
 		
-		// This method allows login with email and matching Session attribute.
-		// If the cookie is missing, it returns a tokenized link via email.
 		try {
 			String email = request.getParameter("Email");
 			String regexPattern = "^(.+)@(\\S+)$";
 			if (!Pattern.compile(regexPattern).matcher(email).matches()) throw new Exception("Not a valid email address");
-			
+
 			String hashedId = getHash(email);
-			HttpSession session = request.getSession();
+			User user = ofy().load().type(User.class).id(hashedId).now();
+			Date now  = new Date();
 			
-			if (!hashedId.equals(session.getAttribute("hashedId"))) { // no valid session; send login link
+			if (user != null && user.expires.after(now) && user.hashedId.equals(request.getSession().getAttribute("hashedId"))) {  // returning user with active session
+				out.println(Sage.start(hashedId));
+			} else { // no valid session; send login link
 				String serverUrl = request.getServerName().contains("localhost")?"http://localhost:8080":Util.serverUrl;
 				Util.sendEmail(null,email,"Sage Login Link", tokenMessage(createToken(hashedId),serverUrl));
 				out.println(emailSent());
 				return;
-			}
-			
-			Date now = new Date();
-			User user = null;
-			try {  // returning user
-				user = ofy().load().type(User.class).id(hashedId).safe();
-				if (user.expires.before(now)) {
-					if (purchaseComplete(request)) {
-						String purchaseDetails = request.getParameter("OrderDetails");
-						out.println(thankYouPage(user,purchaseDetails));
-					}
-					else out.println(checkout(user));
-				}
-				else out.println(Sage.start(hashedId));
-			} catch (Exception e) {  // new user
-				user = new User(hashedId);
-				ofy().save().entity(user);
-				out.println(freeTrial(user));
 			}
 		} catch (Exception e) {
 			response.sendRedirect("/");
@@ -160,23 +165,7 @@ public class Launch extends HttpServlet {
 		
 	}
 	
-	static String freeTrial(User user) {
-		StringBuffer buf = new StringBuffer(Util.head);
-		buf.append("<div style='width:600px; display:flex; align-items:center;'>"
-				+ "<h1>Welcome to Sage</h1>"
-				+ "As a new user, you have been granted a one-week free trial subscription to Sage, an AI-powered "
-				+ "tutor for General Chemistry. Sage will take you on a journey through more than 100 key concepts "
-				+ "in General Chemistry, helping you to learn the concepts and solve problems using them.<p>"
-				+ "Your free trial subscription expires " + user.expires + "<br/>"
-				+ "After that, you can continue to use Sage for just $5.00 per month.<p> "
-				+ "<a class=btn role=button href='/sage'>Continue</a>"
-				+ "<img src=/images/sage.png alt='Confucius Parrot' style='float:right'>"
-				+ "</div><p>");		
-		return buf.toString() + Util.foot;
-	}
-	
-	static String checkout(User user) {
-		
+	static String checkout(User user) {		
 		/*
 		 * The base monthly price (currently $5.00) is set in the checkout_student.js file
 		 */
@@ -252,6 +241,25 @@ public class Launch extends HttpServlet {
 				+ "Please keep a copy of this page as proof of purchase.<p>"
 				+ "<a class=btn role=button href='/sage'>Continue</a><p>"
 				+ "Purchase Details:<br/>" + purchaseDetails + "<p>");
+		return buf.toString() + Util.foot;
+	}
+	
+	String welcomePage(String hashedId) {
+		StringBuffer buf = new StringBuffer(Util.head);
+		buf.append("<h1>Welcome to Sage</h1>"
+				+ "Sage is an AI-powered tutor for General Chemistry. "
+				+ "You will be guided to mastery of more than 100 different key "
+				+ "concepts in the course.<p>"
+				+ "We are pleased to offer you a 7-day free trial subscription "
+				+ "to Sage. After that time, you may renew your subscription for "
+				+ "just $5 USD per month. To accept this offer and start your free "
+				+ "trial, please indicate your acceptance of the terms below:<p>"
+				+ "<form method=post>"
+				+ "<input type=hidden name=HashedId value=" + hashedId + " />"
+				+ "<label><input type=checkbox required name=Terms />I agree to the Sage Terms and Conditions of Use</label><br/>"
+				+ "<label><input type=checkbox required name=Terms />I understand that Sage subscription fees are nonrefundable.</label><p>"
+				+ "<input class=btn type=submit name=UserRequest value='I Agree' />"
+				+ "</form>");
 		return buf.toString() + Util.foot;
 	}
 }
