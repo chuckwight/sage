@@ -113,13 +113,10 @@ public class Sage extends HttpServlet {
 				ofy().save().entity(s).now();
 			}
 
-			buf.append("<h1>Sage - Your AI-Powered Chemistry Tutor</h1>"
-					+ "Sage will be your guide to learning more than 100 key concepts in General Chemistry.");
-
-			buf.append("<h2>" + c.title + "</h2>"
+			buf.append("<h1>" + c.title + "</h1>"
 					+ "<div style='max-width:800px'>"
 					+ "<img src=/images/sage.png alt='Confucius Parrot' style='float:right;margin:20px;'>"
-					+ c.summary==null?ConceptManager.getConceptSummary(c):c.summary + "<p>"
+					+ (c.summary==null?ConceptManager.getConceptSummary(c):c.summary) + "<p>"
 					+ "<a class=btn role=button href='/sage'>Continue</a>"
 					+ "</div>");
 

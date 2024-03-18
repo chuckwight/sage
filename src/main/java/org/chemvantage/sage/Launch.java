@@ -29,26 +29,24 @@ public class Launch extends HttpServlet {
 	public void doGet(HttpServletRequest request,HttpServletResponse response)
 			throws ServletException, IOException {
 		
-		/*
-		 * This method permits login using a valid tokenized link.
-		 */
+		//  This method permits login using a valid tokenized link.
+		
 		PrintWriter out = response.getWriter();
 		response.setContentType("text/html");
 		
 		try {  // token login
 			String token = request.getParameter("Token");
 			String hashedId = validateToken(token);
-			User user = null;
-			try {
-				user = ofy().load().type(User.class).id(hashedId).safe();
-			} catch (Exception e) {
-				user = new User(hashedId);
-				ofy().save().entity(user).now();
-			}
+			User user = ofy().load().type(User.class).id(hashedId).now();
 			
 			Date now = new Date();
-			if (user.expires.before(now)) out.println(checkout(user));
-			else {
+			if (user== null) {  					// new user
+				out.println(welcomePage(hashedId));
+			}
+			else if (user.expires.before(now)) {  	// subscription expired
+				out.println(checkout(user));
+			}
+			else {  								// continuing user
 				request.getSession().setAttribute("hashedId", hashedId);
 				response.sendRedirect("/sage");
 			}
@@ -59,124 +57,67 @@ public class Launch extends HttpServlet {
 	
 	public void doPost(HttpServletRequest request,HttpServletResponse response)
 			throws ServletException, IOException {
-		/*
-		 *  This method accepts the login form from index.html
-		 *  It determines which of 3 states the user is in:
-		 *  1) New - new user (not in the datastore)
-		 *  2) Expired - valid user with expired subscription
-		 *  3) Continuing - valid user with current subscription
-		 *  
-		 *  If the user has a current session with a matching hashedId
-		 *    - redirect to /sage
-		 *  Else send a 5-minute token to the email address containing the state
-		 */
 		
 		PrintWriter out = response.getWriter();
 		response.setContentType("text/html");
 		
-		try {
-			String email = request.getParameter("Email");
-			String regexPattern = "^(.+)@(\\S+)$";
-			if (!Pattern.compile(regexPattern).matcher(email).matches()) throw new Exception("Not a valid email address");
-
-			String hashedId = getHash(email);
-			User user = ofy().load().type(User.class).id(hashedId).now();
-			Date now  = new Date();
-			
-			if (user != null && user.expires.after(now) && user.hashedId.equals(request.getSession().getAttribute("hashedId"))) {  // returning user with active session
-				out.println(Sage.start(hashedId));
-			} else { // no valid session; send login link
-				String serverUrl = request.getServerName().contains("localhost")?"http://localhost:8080":Util.serverUrl;
-				Util.sendEmail(null,email,"Sage Login Link", tokenMessage(createToken(hashedId),serverUrl));
-				out.println(emailSent());
-				return;
+		String userRequest = request.getParameter("UserRequest");
+		if (userRequest == null) userRequest = "";
+		
+		String hashedId = null;
+		User user = null;
+		
+		switch (userRequest) {
+		case "I Agree":  //  new user agrees to terms - from welcomePage()
+			hashedId = request.getParameter("HashedId");
+			user = new User(hashedId);
+			ofy().save().entity(user).now();
+			request.getSession().setAttribute("hashedId", hashedId);
+			response.sendRedirect("/sage");
+			return;
+		case "Complete Purchase":  // after PayPal payment - from checkout()
+			if (purchaseComplete(request)) {
+				out.println(thankYouPage(user,request.getParameter("OrderDetails")));
 			}
-		} catch (Exception e) {
-			response.sendRedirect("/");
-			//out.println("Error: " + e.getMessage()==null?e.toString():e.getMessage());
+			return;
+		default:
+			try {  // login attempt from index.html
+				String email = request.getParameter("Email");
+				String regexPattern = "^(.+)@(\\S+)$";
+				if (!Pattern.compile(regexPattern).matcher(email).matches()) throw new Exception("Not a valid email address");
+
+				hashedId = getHash(email);
+				user = ofy().load().type(User.class).id(hashedId).now();
+				Date now  = new Date();
+
+				if (user != null && user.expires.after(now) && user.hashedId.equals(request.getSession().getAttribute("hashedId"))) {  // returning user with active session
+					out.println(Sage.start(hashedId));
+				} else { // no valid session; send login link
+					String serverUrl = request.getServerName().contains("localhost")?"http://localhost:8080":Util.serverUrl;
+					Util.sendEmail(null,email,"Sage Login Link", tokenMessage(createToken(hashedId),serverUrl));
+					out.println(emailSent());
+					return;
+				}
+			} catch (Exception e) {
+				response.sendRedirect("/");
+			}
 		}
 	}
 
-	static String getHash(String email) throws Exception {
-		MessageDigest md = MessageDigest.getInstance("SHA-256");
-		byte[] bytes = md.digest((email + Util.getSalt()).getBytes(StandardCharsets.UTF_8));
-		StringBuilder sb = new StringBuilder();
-		for (byte b : bytes) {
-			sb.append(String.format("%02x", b));
-		}
-		return sb.toString();
-}
-
-	static String tokenMessage(String token, String serverUrl) {
-		DecodedJWT decoded = JWT.decode(token);
-		Date exp = decoded.getExpiresAt();
-		return "<h1>Login to Sage</h1>"
-			+ "<div style='display:flex; align-items:center;'>"
-			+ "<div>"
-			+ "Please click the tokenized button below to login to your Sage account.<br/>"
-			+ "The link can only be used once, and it will expire in 5 minutes at " + exp + ".<p>"
-			+ "<a href='" + serverUrl + "/launch?Token=" + token + "'>"
-			+ "<button style='border:none;color:white;padding:10px 10px;margin:4px 2px;font-size:16px;cursor:pointer;border-radius:10px;background-color:blue;'>"
-			+ "Login to Sage</button></a>"
-			+ "</div>"
-			+ "<img src='" + decoded.getIssuer() + "/images/sage.png' alt='Confucius Parrot' style='float:right'>\n"
-			+ "</div>";
-	}
-
-	static String createToken(String hashedId) throws Exception {
-		Date now = new Date();
-		Date exp = new Date(now.getTime() + 360000L);  // 5 minutes from now
-		String nonce = Nonce.generateNonce();
-		Algorithm algorithm = Algorithm.HMAC256(Util.getHMAC256Secret());
-		
-		String token = JWT.create()
-				.withIssuer(Util.serverUrl)
-				.withSubject(hashedId)
-				.withExpiresAt(exp)
-				.withClaim("nonce", nonce)
-				.sign(algorithm);
-		
-		return token;
-	}
-	
-	static String validateToken(String token) throws Exception {
-			Algorithm algorithm = Algorithm.HMAC256(Util.getHMAC256Secret());
-			JWTVerifier verifier = JWT.require(algorithm).build();
-			verifier.verify(token);
-			DecodedJWT decoded = JWT.decode(token);
-			String nonce = decoded.getClaim("nonce").asString();
-			if (!Nonce.isUnique(nonce)) throw new Exception("The login link can only be used once.");
-			return decoded.getSubject();
-	}
-	
-	static String emailSent() {
-		Date now = new Date();
-		Date fiveMinutesFromNow = new Date(now.getTime() + 360000L);
-		return Util.head 
-				+ "<h1>Check Your Email</h1>"
-				+ "<div style='width:600px; display:flex; align-items:center;'>"
-				+ "<div>"
-				+ "We sent an email to your address containing a tokenized link to login to Sage.<p>"
-				+ "The link can only be used once, and it will expire in 5 minutes at " + fiveMinutesFromNow + "."
-				+ "</div>"
-				+ "<img src=/images/sage.png alt='Confucius Parrot' style='float:right'>"
-				+ "</div>"
-				+ Util.foot;
-		
-	}
-	
 	static String checkout(User user) {		
 		/*
 		 * The base monthly price (currently $5.00) is set in the checkout_student.js file
 		 */
 		StringBuffer buf = new StringBuffer(Util.head);
 		buf.append("<div style='width:600px; display:flex; align-items:center;'>"
+				+ "<div>"
 				+ "<h1>Your subscription to Sage has expired</h1>"
 				+ "Expiration: " + user.expires + "<p>"
 				+ "To continue the journey through more than 100 key concepts in General Chemistry, please "
 				+ "indicate your agreement with the two statements below by checking the boxes.<p>"
 				+ "<label><input type=checkbox id=terms onChange=showPurchase();> I understand and agree to the <a href=/terms_and_conditions.html target=_blank>Sage Terms and Conditions of Use</a>.</label> <br/>"
 				+ "<label><input type=checkbox id=norefunds onChange=showPurchase();> I understand that all Sage subscription fees are non-refundable.</label> <p>"
+				+ "</div>"
 				+ "<img src=/images/sage.png alt='Confucius Parrot' style='float:right'>"
 				+ "</div><p>"
 				+ "<div id=purchase style='display:none'>\n");
@@ -202,16 +143,58 @@ public class Launch extends HttpServlet {
 		buf.append("<script>initPayPalButton('" + user.hashedId + "')</script>");
 		
 		// Add a hidden activation form to submit via javascript when the payment is successful
-		buf.append("<form id=activationForm method=post action='/launch'>"
+		buf.append("<form id=activationForm method=post>"
+				+ "<input type=hidden name=UserRequest value='Complete Purchase' />"
 				+ "<input type=hidden name=NMonths id=nmonths />"
 				+ "<input type=hidden name=AmountPaid id=amtPaid />"
 				+ "<input type=hidden name=OrderDetails id=orderdetails />"
 				+ "<input type=hidden name=HashedId value='" + user.hashedId + "' />"
 				+ "</form>");
-
+	
 		return buf.toString() + Util.foot;
 	}
-	
+
+	static String createToken(String hashedId) throws Exception {
+		Date now = new Date();
+		Date exp = new Date(now.getTime() + 360000L);  // 5 minutes from now
+		String nonce = Nonce.generateNonce();
+		Algorithm algorithm = Algorithm.HMAC256(Util.getHMAC256Secret());
+		
+		String token = JWT.create()
+				.withIssuer(Util.serverUrl)
+				.withSubject(hashedId)
+				.withExpiresAt(exp)
+				.withClaim("nonce", nonce)
+				.sign(algorithm);
+		
+		return token;
+	}
+
+	static String emailSent() {
+		Date now = new Date();
+		Date fiveMinutesFromNow = new Date(now.getTime() + 360000L);
+		return Util.head 
+				+ "<h1>Check Your Email</h1>"
+				+ "<div style='width:600px; display:flex; align-items:center;'>"
+				+ "<div>"
+				+ "We sent an email to your address containing a tokenized link to login to Sage.<p>"
+				+ "The link can only be used once, and it will expire in 5 minutes at " + fiveMinutesFromNow + "."
+				+ "</div>"
+				+ "<img src=/images/sage.png alt='Confucius Parrot' style='float:right'>"
+				+ "</div>"
+				+ Util.foot;
+	}
+
+	static String getHash(String email) throws Exception {
+		MessageDigest md = MessageDigest.getInstance("SHA-256");
+		byte[] bytes = md.digest((email + Util.getSalt()).getBytes(StandardCharsets.UTF_8));
+		StringBuilder sb = new StringBuilder();
+		for (byte b : bytes) {
+			sb.append(String.format("%02x", b));
+		}
+		return sb.toString();
+}
+
 	static boolean purchaseComplete(HttpServletRequest request) {
 		try {
 			int nmonths = Integer.parseInt(request.getParameter("NMonths"));
@@ -225,14 +208,15 @@ public class Launch extends HttpServlet {
 			User user = ofy().load().type(User.class).id(hashedId).safe();
 			user.expires = cal.getTime();
 			ofy().save().entity(user).now();
+			request.getSession().setAttribute("hashedId",hashedId);
 			
 			return true;
 		} catch (Exception e) {
 			return false;
 		}
 	}
-	
-	static String thankYouPage(User user, String purchaseDetails) {
+
+	static String thankYouPage(User user, String orderDetails) {
 		StringBuffer buf = new StringBuffer(Util.head);
 		
 		buf.append("<h1>Thank you for your purchase</h1>"
@@ -240,13 +224,40 @@ public class Launch extends HttpServlet {
 				+ "Your Sage subscription expires " + user.expires + "<p>"
 				+ "Please keep a copy of this page as proof of purchase.<p>"
 				+ "<a class=btn role=button href='/sage'>Continue</a><p>"
-				+ "Purchase Details:<br/>" + purchaseDetails + "<p>");
+				+ "Purchase Details:<br/>" + orderDetails + "<p>");
 		return buf.toString() + Util.foot;
+	}
+
+	static String tokenMessage(String token, String serverUrl) {
+		DecodedJWT decoded = JWT.decode(token);
+		Date exp = decoded.getExpiresAt();
+		return "<h1>Login to Sage</h1>"
+			+ "<div style='display:flex; align-items:center;'>"
+			+ "<div>"
+			+ "Please click the tokenized button below to login to your Sage account.<br/>"
+			+ "The link can only be used once, and it will expire in 5 minutes at " + exp + ".<p>"
+			+ "<a href='" + serverUrl + "/launch?Token=" + token + "'>"
+			+ "<button style='border:none;color:white;padding:10px 10px;margin:4px 2px;font-size:16px;cursor:pointer;border-radius:10px;background-color:blue;'>"
+			+ "Login to Sage</button></a>"
+			+ "</div>"
+			+ "<img src='" + decoded.getIssuer() + "/images/sage.png' alt='Confucius Parrot' style='float:right'>\n"
+			+ "</div>";
+	}
+
+	static String validateToken(String token) throws Exception {
+			Algorithm algorithm = Algorithm.HMAC256(Util.getHMAC256Secret());
+			JWTVerifier verifier = JWT.require(algorithm).build();
+			verifier.verify(token);
+			DecodedJWT decoded = JWT.decode(token);
+			String nonce = decoded.getClaim("nonce").asString();
+			if (!Nonce.isUnique(nonce)) throw new Exception("The login link can only be used once.");
+			return decoded.getSubject();
 	}
 	
 	String welcomePage(String hashedId) {
 		StringBuffer buf = new StringBuffer(Util.head);
 		buf.append("<h1>Welcome to Sage</h1>"
+				+ "<div style='max-width:600px;'>"
 				+ "Sage is an AI-powered tutor for General Chemistry. "
 				+ "You will be guided to mastery of more than 100 different key "
 				+ "concepts in the course.<p>"
@@ -254,6 +265,7 @@ public class Launch extends HttpServlet {
 				+ "to Sage. After that time, you may renew your subscription for "
 				+ "just $5 USD per month. To accept this offer and start your free "
 				+ "trial, please indicate your acceptance of the terms below:<p>"
+				+ "</div>"
 				+ "<form method=post>"
 				+ "<input type=hidden name=HashedId value=" + hashedId + " />"
 				+ "<label><input type=checkbox required name=Terms />I agree to the Sage Terms and Conditions of Use</label><br/>"
