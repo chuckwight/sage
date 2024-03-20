@@ -271,7 +271,7 @@ public class Launch extends HttpServlet {
 				+ "</div>"
 				+ "<form method=post>"
 				+ "<input type=hidden name=HashedId value=" + hashedId + " />"
-				+ "<label><input type=checkbox required name=Terms />I agree to the Sage Terms and Conditions of Use</label><br/>"
+				+ "<label><input type=checkbox required name=Terms />I agree to the <a href=/terms_and_conditions.html target=_blank>Sage Terms and Conditions of Use</a></label><br/>"
 				+ "<label><input type=checkbox required name=Terms />I understand that Sage subscription fees are nonrefundable.</label><p>"
 				+ "<input class=btn type=submit name=UserRequest value='I Agree' />"
 				+ "</form>");
