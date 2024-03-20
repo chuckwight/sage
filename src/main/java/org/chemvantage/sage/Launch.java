@@ -40,7 +40,7 @@ public class Launch extends HttpServlet {
 			User user = ofy().load().type(User.class).id(hashedId).now();
 			
 			Date now = new Date();
-			if (user== null) {  					// new user
+			if (user == null) {  					// new user
 				out.println(welcomePage(hashedId));
 			}
 			else if (user.expires.before(now)) {  	// subscription expired
@@ -76,8 +76,11 @@ public class Launch extends HttpServlet {
 			response.sendRedirect("/sage");
 			return;
 		case "Complete Purchase":  // after PayPal payment - from checkout()
-			if (purchaseComplete(request)) {
-				out.println(thankYouPage(user,request.getParameter("OrderDetails")));
+			try {
+				if (purchaseComplete(request)) out.println(thankYouPage(request));
+				else throw new Exception("Unknown error");
+			} catch (Exception e) {
+				out.println(e.getMessage()==null?e.toString():e.getMessage());
 			}
 			return;
 		default:
@@ -195,10 +198,9 @@ public class Launch extends HttpServlet {
 		return sb.toString();
 }
 
-	static boolean purchaseComplete(HttpServletRequest request) {
-		try {
+	static boolean purchaseComplete(HttpServletRequest request) throws Exception {
 			int nmonths = Integer.parseInt(request.getParameter("NMonths"));
-			String hashedId = (String)request.getSession(false).getAttribute("hashedId");
+			String hashedId = request.getParameter("HashedId");
 			if (!request.getParameter("OrderDetails").contains(hashedId)) throw new Exception("Not a valid user.");
 			
 			// At this point it looks like a valid purchase; update the User's expiration date
@@ -208,16 +210,17 @@ public class Launch extends HttpServlet {
 			User user = ofy().load().type(User.class).id(hashedId).safe();
 			user.expires = cal.getTime();
 			ofy().save().entity(user).now();
-			request.getSession().setAttribute("hashedId",hashedId);
+			request.getSession().setAttribute("hashedId", hashedId);
 			
 			return true;
-		} catch (Exception e) {
-			return false;
-		}
 	}
 
-	static String thankYouPage(User user, String orderDetails) {
+	static String thankYouPage(HttpServletRequest request) {
 		StringBuffer buf = new StringBuffer(Util.head);
+		String hashedId = request.getParameter("HashedId");
+		String orderDetails = request.getParameter("OrderDetails");
+		
+		User user = ofy().load().type(User.class).id(hashedId).now();
 		
 		buf.append("<h1>Thank you for your purchase</h1>"
 				+ "It is now " + new Date() + "<p>"
