@@ -46,7 +46,6 @@ public class Util {
 	
 	@Ignore static String foot = "<footer><p><hr style='width:600px;margin-left:0' />"
 			+ "<a style='text-decoration:none;color:#000080;font-weight:bold' href=/index.html>"
-			//+ "<img src=/images/logo.png alt='Sage logo' style='vertical-align:middle;width:30px;' /> "
 			+ "sage</a> | "
 			+ "<a href=/terms_and_conditions.html>Terms and Conditions of Use</a> | "
 			+ "<a href=/privacy_policy.html>Privacy Policy</a> | "
@@ -55,15 +54,17 @@ public class Util {
 
 	private Util() {}
 	
+	static public String getAnnouncement() {if (u==null) init(); return u.announcement;}
+
 	static public String getHMAC256Secret() {if (u==null) init(); return u.HMAC256Secret;}
+	static public String getOpenAIKey() {if (u==null) init(); return u.openai_key;}
+
+	static public String getPayPalClientId() {if (u==null) init(); return u.payPalClientId;}
+
 	static public String getReCaptchaSecret() {if (u==null) init(); return u.reCaptchaSecret;}
 	static public String getReCaptchaSiteKeyt() {if (u==null) init(); return u.reCaptchaSiteKey;}
-	static public String getOpenAIKey() {if (u==null) init(); return u.openai_key;}
 	static public String getSalt() {if (u==null) init(); return u.salt;}
-	static public String getAnnouncement() {if (u==null) init(); return u.announcement;}
 	static public String getSendGridAPIKey() {if (u==null) init(); return u.sendGridAPIKey;}
-	static public String getPayPalClientId() {if (u==null) init(); return u.payPalClientId;}
-	
 	static private void init() {
 		if (u==null) {
 			try {
