@@ -118,11 +118,11 @@ public class Launch extends HttpServlet {
 				+ "Expiration: " + user.expires + "<p>"
 				+ "To continue the journey through more than 100 key concepts in General Chemistry, please "
 				+ "indicate your agreement with the two statements below by checking the boxes.<p>"
-				+ "<label><input type=checkbox id=terms onChange=showPurchase();> I understand and agree to the <a href=/terms_and_conditions.html target=_blank>Sage Terms and Conditions of Use</a>.</label> <br/>"
-				+ "<label><input type=checkbox id=norefunds onChange=showPurchase();> I understand that all Sage subscription fees are non-refundable.</label> <p>"
 				+ "</div>"
 				+ "<img src=/images/sage.png alt='Confucius Parrot' style='float:right'>"
 				+ "</div><p>"
+				+ "<label><input type=checkbox id=terms onChange=showPurchase();> I understand and agree to the <a href=/terms_and_conditions.html target=_blank>Sage Terms and Conditions of Use</a>.</label> <br/>"
+				+ "<label><input type=checkbox id=norefunds onChange=showPurchase();> I understand that all Sage subscription fees are non-refundable.</label> <p>"
 				+ "<div id=purchase style='display:none'>\n");
 				
 		buf.append("Select the number of months you wish to purchase: "
