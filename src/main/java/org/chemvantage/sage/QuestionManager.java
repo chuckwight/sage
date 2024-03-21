@@ -6,6 +6,8 @@ import static com.googlecode.objectify.ObjectifyService.ofy;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.List;
@@ -436,7 +438,7 @@ static 	String questionTypeDropDownBox(int questionType) {
 		}
 	}
 
-	static String viewQuestions(Long conceptId) throws Exception {
+	String viewQuestions(Long conceptId) throws Exception {
 		StringBuffer buf = new StringBuffer(Util.head);
 	
 		buf.append("<h1>Manage Question Items</h1>");
@@ -466,11 +468,14 @@ static 	String questionTypeDropDownBox(int questionType) {
 			buf.append("</span>&nbsp;Unclassified: " + nQuestions[0]);
 			
 			// Add a button to create a new question item:
-			buf.append("&nbsp;<a href=/questions?UserRequest=NewQuestion&ConceptId=" + concept.id + ">Create a New Question</a><p>");
+			buf.append("<br/><a href=/questions?UserRequest=NewQuestion&ConceptId=" + concept.id + ">Create a New Question</a><p>");
 			
 			buf.append("<form method=post>"
 					+ "<input type=submit name=UserRequest value='Save Difficulty'/>"
 					+ "<table>");
+			
+			Collections.sort(questions, new SortByQuestionText());
+			
 			for (Question q : questions) {
 				q.setParameters();
 				buf.append("<tr><td style='width:400px;'>"
@@ -483,7 +488,9 @@ static 	String questionTypeDropDownBox(int questionType) {
 						+ "<span" + (q.difficulty!=null&&q.difficulty==4?" style='background-color:#90EE90'":"") + "><input type=radio name='difficulty" + q.id + "' value=4> </span>"
 						+ "<span" + (q.difficulty!=null&&q.difficulty==5?" style='background-color:#90EE90'":"") + "><input type=radio name='difficulty" + q.id + "' value=5> </span>"
 						+ " hard "
-						+ "</div><p>"
+						+ "</div><br/>"
+						+ q.getSuccess()
+						+ "<p>"
 						+ "<a class=btn role=button href='/questions?UserRequest=EditQuestion&QuestionId=" + q.id + "'>Edit</a>&nbsp;"
 						+ "</td></tr>"
 						+ "<tr><td colspan=2><hr></td</tr>");
@@ -495,4 +502,13 @@ static 	String questionTypeDropDownBox(int questionType) {
 		
 		return buf.toString() + Util.foot;
 	}
+	
+	class SortByQuestionText implements Comparator<Question> {
+		public int compare(Question q1,Question q2) {
+			int rank = q1.text.compareTo(q2.text); // alphabetize on Question.text
+			if (rank==0) rank = q1.id.compareTo(q2.id); // tie breaker			
+			return rank;  
+		}
+	}
+
 }
