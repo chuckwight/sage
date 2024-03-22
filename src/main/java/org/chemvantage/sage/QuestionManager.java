@@ -299,6 +299,7 @@ public class QuestionManager extends HttpServlet {
 			buf.append("<INPUT TYPE=HIDDEN NAME=QuestionType VALUE=" + questionType + ">");
 			
 			buf.append("Concept: " + conceptSelectBox(conceptId) + "<br>");
+			buf.append("Difficulty: " + difficultyDropDownBox("") + "<br/>");
 			
 			buf.append(question.edit());
 			buf.append("<INPUT TYPE=SUBMIT NAME=UserRequest VALUE='Preview'></FORM>");
@@ -364,9 +365,9 @@ public class QuestionManager extends HttpServlet {
 			buf.append("<INPUT TYPE=SUBMIT NAME=UserRequest VALUE='Quit'>");
 			
 			buf.append("<hr><h2>Continue Editing</h2>");
-			buf.append("Concept:" + conceptSelectBox(conceptId));
-			buf.append("Question Type:" + questionTypeDropDownBox(q.getQuestionType()));
-			
+			buf.append("Concept:" + conceptSelectBox(conceptId) + "<br/>");
+			buf.append("Question Type:" + questionTypeDropDownBox(q.getQuestionType()) + "<br/>");
+			buf.append("Difficulty: " + difficultyDropDownBox(q.getDifficulty()) + "<br/>");
 			buf.append(q.edit());
 			
 			buf.append("<INPUT TYPE=SUBMIT NAME=UserRequest VALUE=Preview>");
@@ -446,14 +447,13 @@ static 	String questionTypeDropDownBox(int questionType) {
 		if (conceptMap == null) refreshConcepts();		
 		Concept concept = conceptMap.get(conceptId);
 		
-		buf.append("\n<form id='conceptselector' method=get>Select a concept: "
+		buf.append("\n<form id='conceptselector' method=get>Concept: "
 				+ "<select name=ConceptId onchange='submit();' >"
 				+ "<option>Select a concept</option>");
 		for (Concept c : conceptList) buf.append("<option value='" + c.id + (c.id.equals(conceptId)?"' selected >":"' >") + c.title + "</option>\n");
 		buf.append("</select></form>");
 		
 		if (concept != null) {
-			buf.append("<h4>" + concept.title + "</h4>");
 			List<Question> questions = ofy().load().type(Question.class).filter("conceptId",conceptId).list();
 			
 			buf.append("This concept has " + questions.size() + " question items. ");
@@ -471,6 +471,7 @@ static 	String questionTypeDropDownBox(int questionType) {
 			buf.append("<br/><a href=/questions?UserRequest=NewQuestion&ConceptId=" + concept.id + ">Create a New Question</a><p>");
 			
 			buf.append("<form method=post>"
+					+ "<input type=hidden name=ConceptId value=" + concept.id + " />"
 					+ "<input type=submit name=UserRequest value='Save Difficulty'/>"
 					+ "<table>");
 			
