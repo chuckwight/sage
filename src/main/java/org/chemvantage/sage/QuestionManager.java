@@ -54,12 +54,14 @@ public class QuestionManager extends HttpServlet {
 				break;
 			case "Preview":
 				out.println(previewQuestion(request));
+				break;
 			default:
 				Long conceptId = null;
 				try {
 					conceptId = Long.parseLong(request.getParameter("ConceptId")); 
 				} catch (Exception e) {}
-				out.println(viewQuestions(conceptId));
+				boolean sortByPctSuccess = Boolean.parseBoolean(request.getParameter("SortByPctSuccess"));
+				out.println(viewQuestions(conceptId,sortByPctSuccess));
 			}
 		} catch (Exception e) {
 			response.getWriter().println(e.getMessage()==null?e.toString():e.getMessage());
@@ -439,7 +441,7 @@ static 	String questionTypeDropDownBox(int questionType) {
 		}
 	}
 
-	String viewQuestions(Long conceptId) throws Exception {
+	String viewQuestions(Long conceptId,boolean sortByPctSuccess) throws Exception {
 		StringBuffer buf = new StringBuffer(Util.head);
 	
 		buf.append("<h1>Manage Question Items</h1>");
@@ -465,17 +467,24 @@ static 	String questionTypeDropDownBox(int questionType) {
 				buf.append(nQuestions[i] + (i<5?"&nbsp;|&nbsp;":"&nbsp;"));
 				nQuestions[0] -= nQuestions[i];
 			}
-			buf.append("</span>&nbsp;Unclassified: " + nQuestions[0]);
-			
-			// Add a button to create a new question item:
-			buf.append("<br/><a href=/questions?UserRequest=NewQuestion&ConceptId=" + concept.id + ">Create a New Question</a><p>");
+			buf.append("</span>" + (nQuestions[0]>0?"&nbsp;Unclassified: " + nQuestions[0]:""));
 			
 			buf.append("<form method=post>"
 					+ "<input type=hidden name=ConceptId value=" + concept.id + " />"
-					+ "<input type=submit name=UserRequest value='Save Difficulty'/>"
-					+ "<table>");
+					+ "<input type=submit name=UserRequest value='Save Difficulty'/>&nbsp;or&nbsp;");
+					
+			// Add links for sorting and to create a new question item:
+			if (sortByPctSuccess) {
+				Collections.sort(questions, new SortByPctSuccess());
+				buf.append("<a href=/questions&ConceptId=" + concept.id + ">Sort By Text</a>");
+			} else {
+				Collections.sort(questions, new SortByQuestionText());
+				buf.append("<a href=/questions?SortByPctSuccess=true&ConceptId=" + concept.id + ">Sort By Pct Success</a>");
+			}
+
+			buf.append("&nbsp;or&nbsp;<a href=/questions?UserRequest=NewQuestion&ConceptId=" + concept.id + ">Create a New Question</a><p>");
 			
-			Collections.sort(questions, new SortByQuestionText());
+			buf.append("<table>");
 			
 			for (Question q : questions) {
 				q.setParameters();
@@ -512,4 +521,11 @@ static 	String questionTypeDropDownBox(int questionType) {
 		}
 	}
 
+	class SortByPctSuccess implements Comparator<Question> {
+		public int compare(Question q1,Question q2) {
+			int rank = q2.getPctSuccess() - q1.getPctSuccess(); // sort more successful questions first
+			if (rank==0) rank = q1.id.compareTo(q2.id); // tie breaker			
+			return rank;  
+		}
+	}
 }

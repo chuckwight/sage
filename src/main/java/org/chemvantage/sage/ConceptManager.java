@@ -46,16 +46,20 @@ public class ConceptManager extends HttpServlet {
 			c1 = ofy().load().type(Concept.class).id(conceptId).safe();
 		} catch (Exception e) {}
 		
-		buf.append("<table><tr><td></td><td>"
+		buf.append("<table><tr><td colspan=3>"
 				+ (c1==null?"<h1>Add a new Concept</h1>":"<h1>Edit Concept</h1>")
 				+ "</td></tr>");
 		
 		buf.append("<tr><td style='vertical-align:top;padding-right:20px;'>"
 				+ (c1==null?"Edit Existing Concept:<p>":"<a href=/concepts>Add a new Concept</a><p>"));
 		if (concepts == null) getConcepts();
+		
+		buf.append("<table>");
 		for (Concept c : concepts) {
-			buf.append("<a href=/concepts?ConceptId=" + c.id + ">" + c.title + "</a><br/>");
+			buf.append("<tr><td>" + c.orderBy + "</td>"
+					+ "<td><a href=/concepts?ConceptId=" + c.id + ">" + c.title + "</a></td></tr>");
 		}
+		buf.append("</table>");
 		
 		buf.append("</td>");
 		
@@ -115,8 +119,8 @@ public class ConceptManager extends HttpServlet {
 		} catch (Exception e) {
 			c = new Concept(request.getParameter("title"),request.getParameter("orderBy"),request.getParameter("summary"));
 			ofy().save().entity(c).now();
-			getConcepts();
 		}
+		getConcepts();
 		
 		response.sendRedirect("/concepts");
 	}
