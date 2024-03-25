@@ -362,6 +362,8 @@ public class Sage extends HttpServlet {
 					+ "<b> Your answer is correct. </b><IMG SRC=/images/checkmark.gif ALT='Check mark' align=bottom /><p>"
 					+ "<a id=showLink href=# onClick=document.getElementById('solution').style='display:inline';this.style='display:none';document.getElementById('polly').style='display:none';>(show me)</a>"
 					+ "<div id=solution style='display:none'>");
+			details.append("<script src='/js/report_problem.js'></script>");
+			
 			switch (q.getQuestionType()) {
 			case 7: 
 				details.append(api_score.get("feedback")+ "<p>");
