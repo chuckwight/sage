@@ -20,6 +20,7 @@ package org.chemvantage.sage;
 import static com.googlecode.objectify.ObjectifyService.ofy;
 
 import java.io.IOException;
+import java.io.PrintWriter;
 
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
@@ -40,8 +41,6 @@ public class Feedback extends HttpServlet {
 
 	public void doGet(HttpServletRequest request,HttpServletResponse response)
 	throws ServletException, IOException {
-		//response.setContentType("text/html");
-		//PrintWriter out = response.getWriter();
 		
 		HttpSession session = request.getSession(false);
 		if (session == null) {
@@ -53,9 +52,46 @@ public class Feedback extends HttpServlet {
 		String userRequest = request.getParameter("UserRequest");
 		if (userRequest == null) userRequest = "";
 
-		switch (userRequest) {
+		switch (userRequest) {  // only AJAX submissions
 		case "ReportAProblem":
-			try {
+			reportAProblem(hashedId, request);
+			break;
+		case "AjaxRating":
+			//recordAjaxRating(request);
+			break;
+		}
+	}
+
+	public void doPost(HttpServletRequest request,HttpServletResponse response)
+	throws ServletException, IOException {
+		response.setContentType("text/html");
+		PrintWriter out = response.getWriter();
+
+		HttpSession session = request.getSession(false);
+		if (session == null) {
+			response.sendRedirect("/");
+			return;
+		}
+		String hashedId = (String)session.getAttribute("hashedId");
+		
+		String userRequest = request.getParameter("UserRequest");
+		if (userRequest == null) userRequest = "";
+		
+		switch (userRequest ) {
+		case "Submit Feedback":
+			out.println(Util.head + submitFeedback(hashedId,request) + Util.foot);
+			break;
+		}
+	}
+	
+	static String feedbackForm() {
+		StringBuffer buf = new StringBuffer();
+		buf.append("Please rate your Sage experience: ");
+		return buf.toString();
+	}
+	
+	static void reportAProblem(String hashedId, HttpServletRequest request) {
+		try {
 			long questionId = Long.parseLong(request.getParameter("QuestionId"));
 			int[] params = {0,0,0,0};
 			try {
@@ -67,32 +103,13 @@ public class Feedback extends HttpServlet {
 			String studentAnswer = request.getParameter("StudentAnswer");
 			UserReport r = new UserReport(hashedId,questionId,params,studentAnswer,notes);
 			ofy().save().entity(r);
-			sendEmailToAdmin(r,email);
-			} catch (Exception e) {
-				
-			}
-			break;
-		case "AjaxRating":
-			//recordAjaxRating(request);
-			break;
+			if (email != null && !email.isEmpty()) sendEmailToAdmin(r,email);
+		} catch (Exception e) {
+
 		}
 	}
 
-	public void doPost(HttpServletRequest request,HttpServletResponse response)
-	throws ServletException, IOException {
-	}
-/*
-	String viewUserFeedback(User user) {
-		StringBuffer buf = new StringBuffer();
-		Query<UserReport> reports = ofy().load().type(UserReport.class).order("-submitted");		
-		for (UserReport r : reports) {
-			String report = r.view(user);  // returns report only for ChemVantage admins, domainAdmins and report author
-			if (report != null) buf.append(report + "<hr>");
-		}
-		return buf.toString();
-	}
-*/	
-	private void sendEmailToAdmin(UserReport r, String email) {
+	static void sendEmailToAdmin(UserReport r, String email) {
 		String msgBody = r.view();
 		if (!email.isEmpty()) msgBody += "Respond to " + email;
 		
@@ -102,6 +119,22 @@ public class Feedback extends HttpServlet {
 		try {
 		Util.sendEmail("ChemVantage","admin@chemvantage.org","Sage Feedback Report",msgBody);
 		} catch (Exception e) {}
+	}
+	
+	static String submitFeedback(String hashedId, HttpServletRequest request) {
+		StringBuffer buf = new StringBuffer(Util.head);
+		
+		String comments = request.getParameter("Comments");
+		String nStars = request.getParameter("NStars");
+		UserReport r = new UserReport(hashedId,nStars,comments);
+		ofy().save().entity(r);
+		
+		String email = request.getParameter("Email");
+		if (email != null && !email.isEmpty()) sendEmailToAdmin(r,email);
+		
+		buf.append("<h1>Thank you</h1>");
+		
+		return buf.toString() + Util.foot;
 	}
 }
 

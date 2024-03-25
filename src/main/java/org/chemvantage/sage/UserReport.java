@@ -39,7 +39,14 @@ public class UserReport implements Serializable {
 			String comments = "";
 	
 	UserReport() {}
-		
+	
+	UserReport(String hashedId, String nStars, String comments) {
+		try {
+			stars = Integer.parseInt(nStars);
+		} catch (Exception e) {}
+		this.comments = comments;
+	}
+	
 	UserReport(String hashedId,long questionId,int[] params,String studentAnswer,String comments) {
 		this.userId = hashedId;
 		this.questionId = questionId;
