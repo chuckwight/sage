@@ -71,7 +71,7 @@ public class Score {    // this object represents a best score achieved by a use
 		
 		// return the updated Score object
 		score = proposedScore;
-		questionId = proposedScore==100?null:Sage.getQuestionId(this);
+		questionId = proposedScore==100?null:Sage.getNewQuestionId(this);
 		gotHelp =  false;
 		
 		return newQuintileRank > oldQuintileRank;

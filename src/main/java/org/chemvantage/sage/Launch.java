@@ -96,8 +96,8 @@ public class Launch extends HttpServlet {
 				if (user != null && user.expires.after(now) && user.hashedId.equals(request.getSession().getAttribute("hashedId"))) {  // returning user with active session
 					out.println(Sage.start(hashedId));
 				} else { // no valid session; send login link
-					String serverUrl = request.getServerName().contains("localhost")?"http://localhost:8080":Util.serverUrl;
-					Util.sendEmail(null,email,"Sage Login Link", tokenMessage(createToken(hashedId),serverUrl));
+					//String serverUrl = request.getServerName().contains("localhost")?"http://localhost:8080":Util.serverUrl;
+					Util.sendEmail(null,email,"Sage Login Link", tokenMessage(createToken(hashedId),request.getRequestURL().toString()));
 					out.println(emailSent());
 					return;
 				}
@@ -234,6 +234,7 @@ public class Launch extends HttpServlet {
 	static String tokenMessage(String token, String serverUrl) {
 		DecodedJWT decoded = JWT.decode(token);
 		Date exp = decoded.getExpiresAt();
+		serverUrl = serverUrl.substring(0,serverUrl.lastIndexOf("/launch"));  // URL of naked domain
 		return "<h1>Login to Sage</h1>"
 			+ "<div style='display:flex; align-items:center;'>"
 			+ "<div>"

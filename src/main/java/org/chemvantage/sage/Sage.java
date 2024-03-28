@@ -82,7 +82,7 @@ public class Sage extends HttpServlet {
 		
 		try {
 			Score s = getScore(hashedId);
-			JsonObject questionScore = scoreQuestion(request);
+			JsonObject questionScore = scoreQuestion(s,request);
 			if (questionScore == null) {
 				doGet(request,response);
 				return;
@@ -109,7 +109,7 @@ public class Sage extends HttpServlet {
 			Concept c = conceptMap.get(s.conceptId);
 			
 			if (s.questionId == null) {
-				s.questionId = getQuestionId(s);
+				s.questionId = getNewQuestionId(s);
 				ofy().save().entity(s).now();
 			}
 
@@ -210,7 +210,7 @@ public class Sage extends HttpServlet {
 		return null;
 	}
 	
-	static Long getQuestionId(Score s) throws Exception {
+	static Long getNewQuestionId(Score s) throws Exception {
 		// We select the next question by calculating the user's scoreQuintile (1 - 5) and selecting
 		// a question at random from those having the same degree of difficulty (1-5) so that more 
 		// advanced users are offered more difficult questions as they progress through the Concept.
@@ -225,14 +225,14 @@ public class Sage extends HttpServlet {
 		// select one question index at random
 		Key<Question> k = null;
 		Random rand = new Random();
-		if (nQuintileQuestions > 5) {
+		if (nQuintileQuestions >= 5) {
 			k = ofy().load().type(Question.class).filter("conceptId",s.conceptId).filter("difficulty",scoreQuintile).offset(rand.nextInt(nQuintileQuestions)).keys().first().safe();
 		} else {  // use the full range of questions for this Concept
 			k = ofy().load().type(Question.class).filter("conceptId",s.conceptId).offset(rand.nextInt(nConceptQuestions)).keys().first().safe();	
 		}
 		
 		// If this duplicates the current question, try again (recursively)
-		if (k.getId() == currentQuestionId && nConceptQuestions > 1) return getQuestionId(s);
+		if (k.getId() == currentQuestionId && nConceptQuestions > 1) return getNewQuestionId(s);
 		
 		return k.getId();
 	}
@@ -279,17 +279,19 @@ public class Sage extends HttpServlet {
 		return content;
 	}
 	
-	static JsonObject scoreQuestion(HttpServletRequest request) throws Exception {
+	static JsonObject scoreQuestion(Score s, HttpServletRequest request) throws Exception {
 		/*
 		 * This method scores the question and returns a JSON containing
 		 *   rawScore - 0, 1 or 2 meaning incorrect, partially correct, correct
 		 *   showMe - a more detailed response provided to the student
 		 */
 		JsonObject questionScore = new JsonObject();
-		int rawScore = 0;  // result is0, 1 or 2. Tne partial score 1 is for wrong sig figs.
+		int rawScore = 0;  // result is 0, 1 or 2. Tne partial score 1 is for wrong sig figs.
 		StringBuffer details = new StringBuffer();  // includes correct solution or explanation of partial score
 		
 		Long questionId = Long.parseLong(request.getParameter("QuestionId"));
+		if (!questionId.equals(s.questionId)) throw new Exception("Wrong question is being scored.");
+		
 		String studentAnswer = orderResponses(request.getParameterValues(Long.toString(questionId)));
 		if (studentAnswer.isEmpty()) return null;
 		
@@ -304,7 +306,7 @@ public class Sage extends HttpServlet {
 		case 3:
 		case 4:
 		case 5:
-			rawScore = q.isCorrect(studentAnswer)?2:0;
+			rawScore = q.isCorrect(studentAnswer)?2:q.agreesToRequiredPrecision(studentAnswer)?1:0;
 			break;
 		case 6:  // Handle five-star rating response
 			rawScore = 2;  // full marks for submitting a response
@@ -359,7 +361,7 @@ public class Sage extends HttpServlet {
 			details.append("<h1>Congratulations!</h1>"
 					+ "<div style='width:800px;display:flex; align-items:center;'>"
 					+ "<div>"
-					+ "<b> Your answer is correct. </b><IMG SRC=/images/checkmark.gif ALT='Check mark' align=bottom /><p>"
+					+ "<b>Your answer is correct. </b><IMG SRC=/images/checkmark.gif ALT='Check mark' align=bottom /><p>"
 					+ "<a id=showLink href=# onClick=document.getElementById('solution').style='display:inline';this.style='display:none';document.getElementById('polly').style='display:none';>(show me)</a>"
 					+ "<div id=solution style='display:none'>");
 			details.append("<script src='/js/report_problem.js'></script>");
@@ -376,11 +378,13 @@ public class Sage extends HttpServlet {
 			}
 			details.append("</div>"  // end of solution
 					+ "</div>"    // end of left side
-					+ "<img id=polly src='/images/parrot.png' alt='Fun parrot character' style='float:left; margin-left:50px'>"
+					+ "<img id=polly src='/images/parrot2.png' alt='Fun parrot character' style='float:left; margin-left:50px'>"
 					+ "</div>");
 			break;
 		case 1:  // partially correct answer
-			details.append("<h1>Your answer is partially correct</h1>");
+			details.append("<h1>Your answer is partially correct</h1>You received half credit."
+					+ "<div style='width:800px;display:flex; align-items:center;'>"
+					+ "<div>");
 			switch (q.getQuestionType()) {
 			case 5:  // numeric
 				details.append("It appears that you've done the calculation correctly, but your answer "
@@ -389,13 +393,27 @@ public class Sage extends HttpServlet {
 						+ "to include a decimal point to indicate which digits are significant or "
 						+ "(better!) use <a href=https://en.wikipedia.org/wiki/Scientific_notation#E_notation>"
 						+ "scientific E notation</a>.<p>");
+				break;
 			case 7:  // short_essay
 				details.append(api_score.get("feedback") + "<p>");
+				break;
 			default: // no other types currently offer partial credit
 			}
+			details.append("</div>"    // end of left side
+					+ "<img id=polly src='/images/parrot1.png' alt='Empathetic parrot character' style='float:left; margin-left:50px'>"
+					+ "</div>");
 			break;
 		case 0: 
-			details.append("<h1>Sorry, your answer is not correct.<IMG SRC=/images/xmark.png ALT='X mark' align=middle></h1>");
+			details.append("<h1>Sorry, your answer is not correct.<IMG SRC=/images/xmark.png ALT='X mark' align=middle></h1>"
+					+ "<div style='width:800px;display:flex; align-items:center;'>"
+					+ "<div>");
+			details.append("<b>Don't give up!</b><p>"
+					+ "If you feel frustrated, take a break. You can read more about this concept in a "
+					+ "<a href=https://openstax.org/details/books/chemistry-2e target=_openstax>free online chemistry textbook</a> "
+					+ "published by OpenStax. When you're refreshed, you can come back and continue your progress here.<p>");
+			details.append("</div>"    // end of left side
+					+ "<img id=polly src='/images/parrot0.png' alt='Facepalm parrot character' style='float:left; margin-left:50px'>"
+					+ "</div>");
 			break;
 		}
 		
