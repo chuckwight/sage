@@ -476,7 +476,7 @@ static 	String questionTypeDropDownBox(int questionType) {
 			// Add links for sorting and to create a new question item:
 			if (sortByPctSuccess) {
 				Collections.sort(questions, new SortByPctSuccess());
-				buf.append("<a href=/questions&ConceptId=" + concept.id + ">Sort By Text</a>");
+				buf.append("<a href=/questions?ConceptId=" + concept.id + ">Sort By Text</a>");
 			} else {
 				Collections.sort(questions, new SortByQuestionText());
 				buf.append("<a href=/questions?SortByPctSuccess=true&ConceptId=" + concept.id + ">Sort By Pct Success</a>");
