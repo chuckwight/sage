@@ -36,11 +36,12 @@ public class Util {
 			+ "  <meta charset='UTF-8' />\n"
 			+ "  <meta name='viewport' content='width=device-width, initial-scale=1.0' />\n"
 			+ "  <meta name='description' content='ChemVantage is an LTI app that works with yur LMS for teaching and learning college-level General Chemistry.' />\n"
+			+ "  <meta http-equiv='Cache-Control' content='no-cache, no-store, must-revalidate' />\n"
 			+ "  <link rel='icon' href='images/logo.png' />\n"
-			//+ "  <link rel='canonical' href='https://sage.appspot.com' />\n"
+			+ "  <link rel='canonical' href='https://sage.chemvantage.org' />\n"
 			+ "  <title>Sage</title>\n"
 			+ "  <link href='https://fonts.googleapis.com/css2?family=Poppins:wght@100;200;300;400;500;600;700;800;900&family=Shantell+Sans:wght@300;400;500;600;700;800&display=swap' rel='stylesheet'/>\n"
-			+ "  <link rel='stylesheet' href='css/style.css'>\n"
+			+ "  <link rel='stylesheet' href='/css/style.css'>\n"
 			+ "</head>\n"
 			+ "<body>\n";
 	
