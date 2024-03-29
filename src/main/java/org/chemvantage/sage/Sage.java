@@ -132,6 +132,11 @@ public class Sage extends HttpServlet {
 			if (conceptMap == null) refreshConcepts();
 			Concept c = conceptMap.get(s.conceptId);
 			Question q = ofy().load().type(Question.class).id(s.questionId).now();
+			if (q==null) {
+				s.questionId = getNewQuestionId(s);
+				ofy().save().entity(s);
+				q = ofy().load().type(Question.class).id(s.questionId).now();
+			}
 			if (p==0) p = new Random().nextInt();
 			q.setParameters(p);
 
