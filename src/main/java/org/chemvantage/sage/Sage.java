@@ -91,7 +91,7 @@ public class Sage extends HttpServlet {
 			ofy().save().entity(s).now();
 			out.println(printScore(questionScore,s,level_up));
 		} catch (Exception e) {
-			response.sendRedirect("/");
+			response.sendRedirect("/sage");
 		}
 	}
 	
@@ -169,7 +169,7 @@ public class Sage extends HttpServlet {
 			buf.append("<hr style='width:800px;margin-left:0'>");  // break between Sage helper panel and question panel
 
 			// Print the question for the student
-			buf.append("<form method=post onsubmit='waitForScore();' >"
+			buf.append("<form method=post style='max-width:800px;' onsubmit='waitForScore();' >"
 					+ "<input type=hidden name=QuestionId value='" + q.id + "' />"
 					+ "<input type=hidden name=Parameter value='" + p + "' />"
 					+ q.print()
@@ -360,71 +360,67 @@ public class Sage extends HttpServlet {
 		default:
 		}
 		
-		// get the details for the student
-		switch (rawScore) {
-		case 2:  // correct answer
-			details.append("<h1>Congratulations!</h1>"
-					+ "<div style='width:800px;display:flex; align-items:center;'>"
-					+ "<div>"
-					+ "<b>Your answer is correct. </b><IMG SRC=/images/checkmark.gif ALT='Check mark' align=bottom /><p>"
+		// Create a header section for results
+		int questionType = q.getQuestionType();
+		
+		if (questionType==6) details.append("<h1>Thank you for your rating.</h1>");
+		else {
+			// get the details for the student
+			switch (rawScore) {
+			case 2:  // correct answer
+
+				details.append("<h1>Congratulations!</h1>"
+						+ "<b>Your answer is correct. </b><IMG SRC=/images/checkmark.gif ALT='Check mark' align=bottom /><p>");
+				break;
+			case 1: // partial credit			
+				details.append("<h1>Your answer is partially correct</h1>"
+						+ "<b>You received half credit.</b><p>");
+				break;
+			case 0: // wrong answer
+				details.append("<h1>Sorry, your answer is not correct.<IMG SRC=/images/xmark.png ALT='X mark' align=middle></h1>"
+						+ "<div style='max-width:600px;'>"
+						+ "<b>Don't give up!</b><br/>\n"
+						+ "If you feel frustrated, take a break. You can read more about this concept in a "
+						+ "<a href=https://openstax.org/details/books/chemistry-2e target=_openstax>free online chemistry textbook</a> "
+						+ "published by OpenStax. When you're refreshed, you can come back and continue your progress here.<p></div>");
+				break;
+			}
+			
+			details.append("<hr style='margin-left:0;width:600px;'>");
+			
+			details.append("<div style='max-width:600px; display:flex; align-items:center;'>"
 					+ "<a id=showLink href=# onClick=document.getElementById('solution').style='display:inline';this.style='display:none';document.getElementById('polly').style='display:none';>(show me)</a>"
 					+ "<div id=solution style='display:none'>");
-			details.append("<script src='/js/report_problem.js'></script>");
-			
-			switch (q.getQuestionType()) {
-			case 7: 
-				details.append(api_score.get("feedback")+ "<p>");
-				break;
-			case 6:
-				details.append("Thank you for your rating.");
-				break;
-			default:
-				details.append(q.printAllToStudents(studentAnswer));
-			}
-			details.append("</div>"  // end of solution
-					+ "</div>"    // end of left side
-					+ "<img id=polly src='/images/parrot2.png' alt='Fun parrot character' style='float:left; margin-left:50px'>"
-					+ "</div>");
-			break;
-		case 1:  // partially correct answer
-			details.append("<h1>Your answer is partially correct</h1>You received half credit."
-					+ "<div style='width:800px;display:flex; align-items:center;'>"
-					+ "<div>");
-			switch (q.getQuestionType()) {
+			switch (questionType) {
+			/*
 			case 5:  // numeric
-				details.append("It appears that you've done the calculation correctly, but your answer "
-						+ "does not have the correct number of significant figures appropriate for "
-						+ "the data given in the question. If your answer ends in a zero, be sure "
-						+ "to include a decimal point to indicate which digits are significant or "
-						+ "(better!) use <a href=https://en.wikipedia.org/wiki/Scientific_notation#E_notation>"
-						+ "scientific E notation</a>.<p>");
+				if (rawScore==1) {
+					details.append("It appears that you've done the calculation correctly, but your answer "
+							+ "does not have the correct number of significant figures appropriate for "
+							+ "the data given in the question. If your answer ends in a zero, be sure "
+							+ "to include a decimal point to indicate which digits are significant or "
+							+ "(better!) use <a href=https://en.wikipedia.org/wiki/Scientific_notation#E_notation>"
+							+ "scientific E notation</a>.</div><p>");
+				}
+				details.append(q.printAllToStudents(studentAnswer));
 				break;
+			*/
 			case 7:  // short_essay
 				details.append(api_score.get("feedback") + "<p>");
 				break;
-			default: // no other types currently offer partial credit
+			default: // just print the solution
+				details.append(q.printAllToStudents(studentAnswer));
 			}
-			details.append("</div>"    // end of left side
-					+ "<img id=polly src='/images/parrot1.png' alt='Empathetic parrot character' style='float:left; margin-left:50px'>"
+
+			details.append("</div>"
+					+ "<img id=polly src='/images/" + (rawScore==2?"parrot2.png":(rawScore==1?"parrot1.png":"parrot0.png")) + "' alt='Parrot character' style='margin-left:50px'>"
 					+ "</div>");
-			break;
-		case 0: 
-			details.append("<h1>Sorry, your answer is not correct.<IMG SRC=/images/xmark.png ALT='X mark' align=middle></h1>"
-					+ "<div style='width:800px;display:flex; align-items:center;'>"
-					+ "<div>");
-			details.append("<b>Don't give up!</b><p>"
-					+ "If you feel frustrated, take a break. You can read more about this concept in a "
-					+ "<a href=https://openstax.org/details/books/chemistry-2e target=_openstax>free online chemistry textbook</a> "
-					+ "published by OpenStax. When you're refreshed, you can come back and continue your progress here.<p>");
-			details.append("</div>"    // end of left side
-					+ "<img id=polly src='/images/parrot0.png' alt='Facepalm parrot character' style='float:left; margin-left:50px'>"
-					+ "</div>");
-			break;
+
+			details.append("<script src='/js/report_problem.js'></script>");
 		}
-		
 		questionScore.addProperty("rawScore", rawScore);
 		questionScore.addProperty("details", details.toString());
-		
+
 		return questionScore;
 	}
 	

@@ -58,7 +58,7 @@ public class ConceptManager extends HttpServlet {
 				try {
 					Long conceptId = Long.parseLong(request.getParameter("id"));
 					c = ofy().load().type(Concept.class).id(conceptId).safe();
-					c.title = request.getParameter("title");
+					c.title = request.getParameter("title").replaceAll("\'", "&#39;");
 					c.orderBy = request.getParameter("orderBy");
 					c.summary = request.getParameter("summary");
 					ofy().save().entity(c).now();
