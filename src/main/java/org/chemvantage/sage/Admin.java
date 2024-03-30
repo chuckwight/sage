@@ -28,18 +28,28 @@ public class Admin extends HttpServlet {
 		if (userRequest == null) userRequest = "";
 		
 		switch (userRequest ) {
-		case "View Feedback":
-			out.println(Util.head + viewUserFeedback() + Util.foot);
-			break;
 		}	
-		out.println(Util.head + adminPage() + Util.foot);
+		out.println(adminPage());
 	}
 	
+	public void doPost(HttpServletRequest request, HttpServletResponse response)
+			throws ServletException, IOException {
+	
+		String userRequest = request.getParameter("UserRequest");
+		if (userRequest == null) userRequest = "";
+		
+		switch (userRequest ) {
+		case "Delete Feedback":
+			deleteFeedback(request);
+			break;
+		}
+		doGet(request,response);
+	}
 	static String adminPage() {
 		StringBuffer buf = new StringBuffer(Util.head);
 		buf.append("<h1>Admin Page</h1>"
-				+ "<h2>Users></h2>"
-				+ "Total: " + ofy().load().type(User.class).count() + "M<br/>"
+				+ "<h2>Users</h2>"
+				+ "Total: " + ofy().load().type(User.class).count() + " users<br/>"
 				+ "Expired: " + ofy().load().type(User.class).filter("expired <",new Date()).count() + "<p>"
 				+ "<h2>User Feedback</h2>"
 				+ viewUserFeedback());
@@ -48,11 +58,24 @@ public class Admin extends HttpServlet {
 	
 	static String viewUserFeedback() {
 		StringBuffer buf = new StringBuffer();
-		List<UserReport> reports = ofy().load().type(UserReport.class).order("-submitted").list();		
+		List<UserReport> reports = ofy().load().type(UserReport.class).order("-submitted").list();
+		if (reports.size()==0) return "(none)";
 		for (UserReport r : reports) {
-			buf.append(r.view() + "<hr>");
+			buf.append(r.view() 
+					+ "<a href='/questions?UserRequest=EditQuestion&QuestionId=" + r.questionId + "'>Edit Question</a>&nbsp;or&nbsp;"
+					+ "<form method=post style='display: inline'>"
+					+ "<input type=hidden name=ReportId value='" + r.id + "' />"
+					+ "<input type=submit name=UserRequest value='Delete Feedback' />"
+					+ "</form><p>"
+					+ "<hr>");
 		}
 		return buf.toString();
 	}
 
+	static void deleteFeedback(HttpServletRequest request) {
+		try {
+			Long reportId = Long.parseLong(request.getParameter("ReportId"));
+			ofy().delete().type(UserReport.class).id(reportId).now();
+		} catch (Exception e) {}
+	}
 }
