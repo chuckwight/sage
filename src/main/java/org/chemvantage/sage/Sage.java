@@ -237,7 +237,7 @@ public class Sage extends HttpServlet {
 		}
 		
 		// If this duplicates the current question, try again (recursively)
-		if (k.getId() == currentQuestionId && nConceptQuestions > 1) return getNewQuestionId(s);
+		if (k.getId().equals(currentQuestionId) && nConceptQuestions > 1) return getNewQuestionId(s);
 		
 		return k.getId();
 	}
@@ -392,19 +392,8 @@ public class Sage extends HttpServlet {
 					+ "<a id=showLink href=# onClick=document.getElementById('solution').style='display:inline';this.style='display:none';document.getElementById('polly').style='display:none';>(show me)</a>"
 					+ "<div id=solution style='display:none'>");
 			switch (questionType) {
-			/*
-			case 5:  // numeric
-				if (rawScore==1) {
-					details.append("It appears that you've done the calculation correctly, but your answer "
-							+ "does not have the correct number of significant figures appropriate for "
-							+ "the data given in the question. If your answer ends in a zero, be sure "
-							+ "to include a decimal point to indicate which digits are significant or "
-							+ "(better!) use <a href=https://en.wikipedia.org/wiki/Scientific_notation#E_notation>"
-							+ "scientific E notation</a>.</div><p>");
-				}
-				details.append(q.printAllToStudents(studentAnswer));
-				break;
-			*/
+			case 6:  // five-star rating
+				details.append("Your rating has been recorded, thank you.");
 			case 7:  // short_essay
 				details.append(api_score.get("feedback") + "<p>");
 				break;
