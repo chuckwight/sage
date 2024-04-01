@@ -51,6 +51,9 @@ public class ConceptManager extends HttpServlet {
 		
 		try {
 			switch (userRequest) {
+			case "Combine":
+				combineConcepts(request);
+				break;
 			case "ReOrder":
 				reOrderConcepts(request);
 				break;
@@ -72,12 +75,27 @@ public class ConceptManager extends HttpServlet {
 		response.sendRedirect("/concepts" + (c==null?"":"?ConceptId=" + c.id));
 	}
 	
+	static void combineConcepts(HttpServletRequest request) throws Exception {
+		Long fromConceptId = null;
+		Long toConceptId = null;
+		try {
+			fromConceptId = Long.parseLong(request.getParameter("FromConceptId"));
+			toConceptId = Long.parseLong(request.getParameter("ToConceptId"));
+		} catch (Exception e) {
+			return;
+		}
+		List<Question> questions = ofy().load().type(Question.class).filter("conceptId",fromConceptId).list();
+		for (Question q:questions) {
+			q.conceptId = toConceptId;
+		}
+		ofy().save().entities(questions).now();
+	}
+	
 	static void getConcepts() {
 		concepts = ofy().load().type(Concept.class).order("orderBy").list();
 	}
 	
 	static String getConceptSummary(Concept c) throws Exception {
-
 		JsonObject api_request = new JsonObject();  // these are used to score essay questions using ChatGPT
 		api_request.addProperty("model","gpt-4");
 		//api_request.addProperty("model","gpt-3.5-turbo");
@@ -136,7 +154,7 @@ public class ConceptManager extends HttpServlet {
 			c1 = ofy().load().type(Concept.class).id(conceptId).safe();
 		} catch (Exception e) {}
 		
-		buf.append("<table><tr><td colspan=3>"
+		buf.append("<table><tr><td colspan=2>"
 				+ (c1==null?"<h1>Add a new Concept</h1>":"<h1>Edit Concept</h1>")
 				+ "</td></tr>");
 		
@@ -145,11 +163,17 @@ public class ConceptManager extends HttpServlet {
 		//if (concepts == null) getConcepts();
 		getConcepts();
 		
-		buf.append("<form method=post><input type=submit name=UserRequest value=ReOrder />");		
-		buf.append("<table>");
+		buf.append("<form method=post>"
+				+ "<input type=submit name=UserRequest value=Combine />"	
+				+ "<input type=submit name=UserRequest value=ReOrder />");		
+		buf.append("<table><tr><th>Fr</th><th>To</th><th>Order</th><th>Title</th></tr>");
 		for (Concept c : concepts) {
-			buf.append("<tr><td><input type=text size=5 name=" + c.id + " value='" + c.orderBy + "' /></td>"
-					+ "<td><a href=/concepts?ConceptId=" + c.id + ">" + c.title + "</a></td></tr>");
+			buf.append("<tr>"
+					+ "<td><input type=radio name=FromConceptId value='" + c.id + "' /></td>"
+					+ "<td><input type=radio name=ToConceptId value='" + c.id + "' /></td>"
+					+ "<td><input type=text size=5 name=" + c.id + " value='" + c.orderBy + "' /></td>"
+					+ "<td><a href=/concepts?ConceptId=" + c.id + ">" + c.title + "</a></td>"
+					+ "</tr>");
 		}
 		buf.append("</table></form>");
 		
