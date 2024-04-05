@@ -634,7 +634,9 @@ public class Question implements Serializable, Cloneable {
 			buf.append("<b>The answer submitted was: " + studentAnswer + "</b>&nbsp;");
 			if (this.isCorrect(studentAnswer)) buf.append("&nbsp;<IMG SRC=/images/checkmark.gif ALT='Check mark' align=bottom>");
 			else if (this.agreesToRequiredPrecision(studentAnswer)) buf.append("<IMG SRC=/images/partCredit.png ALT='minus 1 sig figs' align=middle>"
-					+ "<br/>Your answer must have exactly " + significantFigures + " significant digits.<br/>If your answer ends in a zero, then it must also have a decimal point to indicate which digits are significant.");
+					+ "<br/>Your answer must have exactly " + significantFigures + " significant digits.<br/>If your answer ends in a zero, "
+							+ "then it must also have a decimal point to indicate which digits are significant. "
+							+ "A good way to do this is by using scientific notation.");
 			else buf.append("<IMG SRC=/images/xmark.png ALT='X mark' align=middle>");
 			buf.append("<br/><br/>");
 		} else if (getQuestionType()==7) {
