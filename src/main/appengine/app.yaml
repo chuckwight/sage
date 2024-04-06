@@ -10,7 +10,7 @@ handlers:
   secure: always
 
 # All requests to the following URLs are restricted to admins or service accounts
-- url: /(concepts|questions|admin)
+- url: /(admin|chapters|concepts|questions)
   secure: always
   login: admin
   script: auto
