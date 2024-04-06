@@ -528,19 +528,19 @@ public class Question implements Serializable, Cloneable {
 		return buf.toString();
 	}
 
-	String printAllToStudents(String studentAnswer) {
+	String printAllToStudents(String studentAnswer) throws Exception {
 		return printAllToStudents(studentAnswer,true,true,"");
 	}
 	
-	String printAllToStudents(String studentAnswer,boolean showDetails) {
+	String printAllToStudents(String studentAnswer,boolean showDetails) throws Exception {
 		return printAllToStudents(studentAnswer,showDetails,true,"");
 	}
 	
-	String printAllToStudents(String studentAnswer,boolean showDetails,boolean reportable) {
+	String printAllToStudents(String studentAnswer,boolean showDetails,boolean reportable) throws Exception {
 		return printAllToStudents(studentAnswer,showDetails,reportable,"");
 	}
 	
-	String printAllToStudents(String studentAnswer,boolean showDetails,boolean reportable,String showWork) {
+	String printAllToStudents(String studentAnswer,boolean showDetails,boolean reportable,String showWork) throws Exception {
 		// use this method to display an example of the question, correct answer and solution
 		// this differs from printAll() because only the first of several 
 		// correct fill-in-word answers is presented, and choices are not scrambled
@@ -674,7 +674,7 @@ public class Question implements Serializable, Cloneable {
 			buf.append("Your Comment: <INPUT TYPE=TEXT SIZE=80 NAME=Notes /><br/>");
 			buf.append("Your Email: <INPUT TYPE=TEXT SIZE=50 PLACEHOLDER=' optional, if you want a response' NAME=Email /><br/>");
 			buf.append("<INPUT TYPE=BUTTON VALUE='Submit Feedback' "
-					+ "onClick=\" return ajaxSubmit('/Feedback?UserRequest=ReportAProblem','" + this.id + "','" + Arrays.toString(this.parameters) + "','" + studentAnswer + "',encodeURIComponent(document.getElementById('suggest" + this.id + "').Notes.value),encodeURIComponent(document.getElementById('suggest" + this.id + "').Email.value)); return false;\" />"
+					+ "onClick=\" return ajaxSubmit('/Feedback?UserRequest=ReportAProblem','" + this.id + "','" + URLEncoder.encode(Arrays.toString(this.parameters),"UTF-8") + "','" + studentAnswer + "',encodeURIComponent(document.getElementById('suggest" + this.id + "').Notes.value),encodeURIComponent(document.getElementById('suggest" + this.id + "').Email.value)); return false;\" />"
 					+ "</div></FORM><br/>");
 			buf.append("</div>");
 		}

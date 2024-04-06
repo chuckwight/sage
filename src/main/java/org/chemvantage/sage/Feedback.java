@@ -79,7 +79,9 @@ public class Feedback extends HttpServlet {
 		
 		switch (userRequest ) {
 		case "Submit Feedback":
-			out.println(Util.head + submitFeedback(hashedId,request) + Util.foot);
+			try {
+				out.println(Util.head + submitFeedback(hashedId,request) + Util.foot);
+			} catch (Exception e) {}
 			break;
 		}
 	}
@@ -109,7 +111,7 @@ public class Feedback extends HttpServlet {
 		}
 	}
 
-	static void sendEmailToAdmin(UserReport r, String email) {
+	static void sendEmailToAdmin(UserReport r, String email) throws Exception {
 		String msgBody = r.view();
 		if (!email.isEmpty()) msgBody += "Respond to " + email;
 		
@@ -121,7 +123,7 @@ public class Feedback extends HttpServlet {
 		} catch (Exception e) {}
 	}
 	
-	static String submitFeedback(String hashedId, HttpServletRequest request) {
+	static String submitFeedback(String hashedId, HttpServletRequest request) throws Exception {
 		StringBuffer buf = new StringBuffer(Util.head);
 		
 		String comments = request.getParameter("Comments");

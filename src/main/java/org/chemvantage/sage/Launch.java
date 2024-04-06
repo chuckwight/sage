@@ -68,9 +68,14 @@ public class Launch extends HttpServlet {
 		User user = null;
 		
 		switch (userRequest) {
-		case "I Agree":  //  new user agrees to terms - from welcomePage()
+		case "Start":  //  new user agrees to terms - from welcomePage()
 			hashedId = request.getParameter("HashedId");
 			user = new User(hashedId);
+			try {
+				user.conceptId = Long.parseLong(request.getParameter("ConceptId"));
+			} catch (Exception e) {
+				user.conceptId = ofy().load().type(Concept.class).order("orderBy").keys().first().now().getId();
+			}
 			ofy().save().entity(user).now();
 			request.getSession().setAttribute("hashedId", hashedId);
 			response.sendRedirect("/sage");
@@ -94,7 +99,7 @@ public class Launch extends HttpServlet {
 				Date now  = new Date();
 
 				if (user != null && user.expires.after(now) && user.hashedId.equals(request.getSession().getAttribute("hashedId"))) {  // returning user with active session
-					out.println(Sage.start(hashedId));
+					out.println(Sage.start(user));
 				} else { // no valid session; send login link
 					Util.sendEmail(null,email,"Sage Login Link", tokenMessage(createToken(hashedId),request.getRequestURL().toString()));
 					out.println(emailSent());
@@ -279,21 +284,25 @@ public class Launch extends HttpServlet {
 	
 	String welcomePage(String hashedId) {
 		StringBuffer buf = new StringBuffer(Util.head);
+		Concept firstConcept = ofy().load().type(Concept.class).order("orderBy").first().now();
 		buf.append("<h1>Welcome to Sage</h1>"
-				+ "<div style='max-width:600px;'>"
-				+ "Sage is an AI-powered tutor for General Chemistry. "
-				+ "You will be guided to mastery of more than 100 different key "
-				+ "concepts in the course.<p>"
-				+ "We are pleased to offer you a 7-day free trial subscription "
-				+ "to Sage. After that time, you may renew your subscription for "
-				+ "just $5 USD per month. To accept this offer and start your free "
-				+ "trial, please indicate your acceptance of the terms below:<p>"
+				+ "<h2>Sage is an AI-powered tutor for General Chemistry.</h2>"
+				+ "<div style='max-width:800px;'>"
+				+ "<img src=/images/sage.png alt='Confucius Parrot' style='float:right'>"
+				+ "You will be guided through a series of questions and problems, with the Sage at your side, "
+				+ "ready to provide help whenever you need it.<p>"
+				+ "We are pleased to offer you a 7-day free trial subscription to Sage. After that time, "
+				+ "you may renew your subscription for just $5 USD per month. To accept this offer and "
+				+ "start your free trial, please indicate your acceptance of the terms below:<p>"
 				+ "</div>"
 				+ "<form method=post>"
 				+ "<input type=hidden name=HashedId value=" + hashedId + " />"
 				+ "<label><input type=checkbox required name=Terms />I agree to the <a href=/terms_and_conditions.html target=_blank>Sage Terms and Conditions of Use</a></label><br/>"
 				+ "<label><input type=checkbox required name=Terms />I understand that Sage subscription fees are nonrefundable.</label><p>"
-				+ "<input class=btn type=submit name=UserRequest value='I Agree' />"
+				+ "This tutorial is organized around 100 key concepts normally taught in a college-level General Chemistry course.<br/>"
+				+ "<h3>The first concept is: " + firstConcept.title + "</h3>"
+				+ "<input type=hidden name=ConceptId value='" + firstConcept.id + "' >"
+				+ "<input class=btn type=submit name=UserRequest value='Start' />"
 				+ "</form>");
 		return buf.toString() + Util.foot;
 	}

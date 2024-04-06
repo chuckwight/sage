@@ -24,12 +24,9 @@ public class Admin extends HttpServlet {
 		PrintWriter out = response.getWriter();
 		response.setContentType("text/html");
 		
-		String userRequest = request.getParameter("UserRequest");
-		if (userRequest == null) userRequest = "";
-		
-		switch (userRequest ) {
-		}	
-		out.println(adminPage());
+		try {
+			out.println(adminPage());
+		} catch (Exception e) {}
 	}
 	
 	public void doPost(HttpServletRequest request, HttpServletResponse response)
@@ -45,7 +42,7 @@ public class Admin extends HttpServlet {
 		}
 		doGet(request,response);
 	}
-	static String adminPage() {
+	static String adminPage() throws Exception {
 		StringBuffer buf = new StringBuffer(Util.head);
 		buf.append("<h1>Admin Page</h1>"
 				+ "<h2>Users</h2>"
@@ -56,7 +53,7 @@ public class Admin extends HttpServlet {
 		return buf.toString() + Util.foot;
 	}
 	
-	static String viewUserFeedback() {
+	static String viewUserFeedback() throws Exception {
 		StringBuffer buf = new StringBuffer();
 		List<UserReport> reports = ofy().load().type(UserReport.class).order("-submitted").list();
 		if (reports.size()==0) return "(none)";

@@ -63,7 +63,7 @@ public class Sage extends HttpServlet {
 				out.println(poseQuestion(s,help,parameter));
 			}
 		} catch (Exception e) {
-			response.sendRedirect("/");
+			out.println(Launch.errorPage(e));
 		}
 	}
 	
@@ -93,153 +93,6 @@ public class Sage extends HttpServlet {
 		} catch (Exception e) {
 			response.sendRedirect("/sage");
 		}
-	}
-	
-	static void refreshConcepts() {
-		conceptList = ofy().load().type(Concept.class).order("orderBy").list();
-		conceptMap = new HashMap<Long,Concept>();
-		for (Concept c : conceptList) conceptMap.put(c.id, c);
-	}
-	
-	static String start(String hashedId) throws Exception {
-		StringBuffer buf = new StringBuffer(Util.head);
-		try {
-			Score s = getScore(hashedId);
-			if (conceptMap == null) refreshConcepts();
-			Concept c = conceptMap.get(s.conceptId);
-			
-			if (s.questionId == null) {
-				s.questionId = getNewQuestionId(s);
-				ofy().save().entity(s).now();
-			}
-
-			buf.append("<h1>" + c.title + "</h1>"
-					+ "<div style='max-width:800px'>"
-					+ "<img src=/images/sage.png alt='Confucius Parrot' style='float:right;margin:20px;'>"
-					+ (c.summary==null?ConceptManager.getConceptSummary(c):c.summary) + "<p>"
-					+ "<a class=btn role=button href='/sage'>Continue</a>"
-					+ "</div>");
-
-		} catch (Exception e) {
-			buf.append("<p>Error: " + e.getMessage()==null?e.toString():e.getMessage());
-		}
-		return buf.toString() + Util.foot;
-	}
-	
-	static String poseQuestion(Score s, boolean help, int p) throws Exception {
-		StringBuffer buf = new StringBuffer(Util.head);
-		try {
-			if (conceptMap == null) refreshConcepts();
-			Concept c = conceptMap.get(s.conceptId);
-			Question q = ofy().load().type(Question.class).id(s.questionId).now();
-			if (q==null) {
-				s.questionId = getNewQuestionId(s);
-				ofy().save().entity(s);
-				q = ofy().load().type(Question.class).id(s.questionId).now();
-			}
-			if (p==0) p = new Random().nextInt();
-			q.setParameters(p);
-
-			buf.append("<h1>" + c.title + "</h1>");
-			
-			buf.append("<div style='width:800px; height=300px; overflow=auto; display:flex; align-items:center;'>");
-			if (help) {
-				buf.append("<div>"
-						+ getHelp(q)
-						+ "</div>"
-						+ "<img src=/images/sage.png alt='Confucius Parrot' style='float:right'>");
-			} else {
-				buf.append("<div>"
-						+ "Please submit your answer to the question below.<p>"
-						+ "If you get stuck, I am here to help you, but your score will be higher if you do it by yourself.<p>"
-						+ "<a id=help class=btn role=button href=/sage?Help=true&p=" + p + " onclick=waitForHelp()>Please help me with this question</a>"
-						+ "</div>"
-						+ "<img src=/images/sage.png alt='Confucius Parrot' style='float:right'>");
-			}
-			buf.append("</div>");
-			
-			// include some javascript to change the submit button
-			buf.append("<script>"
-					+ "function waitForHelp() {\n"
-					+ " let a = document.getElementById('help');\n"
-					+ " a.innerHTML = 'Please wait a moment for Sage to answer.';\n"
-					+ "}\n"
-					+ "</script>");
-			
-			buf.append("<hr style='width:800px;margin-left:0'>");  // break between Sage helper panel and question panel
-
-			// Print the question for the student
-			buf.append("<form method=post style='max-width:800px;' onsubmit='waitForScore();' >"
-					+ "<input type=hidden name=QuestionId value='" + q.id + "' />"
-					+ "<input type=hidden name=Parameter value='" + p + "' />"
-					+ q.print()
-					+ "<input id='sub" + q.id + "' type=submit class='btn' />"
-					+ "</form><p>");
-			
-			// include some javascript to change the submit button
-			buf.append("<script>"
-					+ "function waitForScore() {\n"
-					+ " let b = document.getElementById('sub" + q.id + "');\n"
-					+ " b.disabled = true;\n"
-					+ " b.value = 'Please wait a moment while we score your response.';\n"
-					+ "}\n"
-					+ "</script>");
-		} catch (Exception e) {
-			buf.append("<p>Error: " + e.getMessage()==null?e.toString():e.getMessage());
-		}
-		return buf.toString() + Util.foot;	
-	}
-	
-	static Score getScore(String hashedId) {
-		Score s = null;
-		// Get all of the keys for existing Scores for this user (cheap query)
-		List<Key<Score>> scoreKeys = ofy().load().type(Score.class).ancestor(key(User.class,hashedId)).keys().list();
-		
-		// Look for the next missing Score in the sequence (this forgives adding a Concept later)
-		if (conceptList == null) refreshConcepts();
-		Key<Score> k = null;
-		for (Concept c : conceptList) {
-			k = key(key(User.class,hashedId),Score.class,c.id);
-			if (scoreKeys.contains(k)) continue;
-			// found the first missing Score
-			if (conceptList.indexOf(c)==0) { // new user 
-				return new Score(hashedId,conceptList.get(0).id);  // return a new Score
-			}
-			// check the previous Score to see if it is complete
-			k = key(key(User.class,hashedId),Score.class,conceptList.get(conceptList.indexOf(c)-1).id);
-			s = ofy().load().key(k).safe();
-			if (s.score < 100) return s;  // still working on the previous Concept
-			else return new Score(hashedId,c.id);  // return a new Score
-		}
-		// at this point, all of the Concepts have been completed
-		return null;
-	}
-	
-	static Long getNewQuestionId(Score s) throws Exception {
-		// We select the next question by calculating the user's scoreQuintile (1 - 5) and selecting
-		// a question at random from those having the same degree of difficulty (1-5) so that more 
-		// advanced users are offered more difficult questions as they progress through the Concept.
-		
-		Long currentQuestionId = s.questionId;  // don't duplicate this
-		int scoreQuintile = s.score/20 + 1;
-		int nConceptQuestions = ofy().load().type(Question.class).filter("conceptId",s.conceptId).count();
-		if (nConceptQuestions == 0) throw new Exception("Sorry, there are no questions for this Concept.");
-		
-		int nQuintileQuestions =  ofy().load().type(Question.class).filter("conceptId",s.conceptId).filter("difficulty",scoreQuintile).count();
-		
-		// select one question index at random
-		Key<Question> k = null;
-		Random rand = new Random();
-		if (nQuintileQuestions >= 5) {
-			k = ofy().load().type(Question.class).filter("conceptId",s.conceptId).filter("difficulty",scoreQuintile).offset(rand.nextInt(nQuintileQuestions)).keys().first().safe();
-		} else {  // use the full range of questions for this Concept
-			k = ofy().load().type(Question.class).filter("conceptId",s.conceptId).offset(rand.nextInt(nConceptQuestions)).keys().first().safe();	
-		}
-		
-		// If this duplicates the current question, try again (recursively)
-		if (k.getId().equals(currentQuestionId) && nConceptQuestions > 1) return getNewQuestionId(s);
-		
-		return k.getId();
 	}
 	
 	static String getHelp(Question q) throws Exception {
@@ -282,6 +135,150 @@ public class Sage extends HttpServlet {
 		
 		String content = api_response.get("choices").getAsJsonArray().get(0).getAsJsonObject().get("message").getAsJsonObject().get("content").getAsString();
 		return content;
+	}
+
+	static Long getNewQuestionId(Score s) throws Exception {
+		// We select the next question by calculating the user's scoreQuintile (1 - 5) and selecting
+		// a question at random from those having the same degree of difficulty (1-5) so that more 
+		// advanced users are offered more difficult questions as they progress through the Concept.
+		
+		Long currentQuestionId = s.questionId;  // don't duplicate this
+		int scoreQuintile = s.score/20 + 1;
+		int nConceptQuestions = ofy().load().type(Question.class).filter("conceptId",s.conceptId).count();
+		if (nConceptQuestions == 0) throw new Exception("Sorry, there are no questions for this Concept.");
+		
+		int nQuintileQuestions =  ofy().load().type(Question.class).filter("conceptId",s.conceptId).filter("difficulty",scoreQuintile).count();
+		
+		// select one question index at random
+		Key<Question> k = null;
+		Random rand = new Random();
+		if (nQuintileQuestions >= 5) {
+			k = ofy().load().type(Question.class).filter("conceptId",s.conceptId).filter("difficulty",scoreQuintile).offset(rand.nextInt(nQuintileQuestions)).keys().first().safe();
+		} else {  // use the full range of questions for this Concept
+			k = ofy().load().type(Question.class).filter("conceptId",s.conceptId).offset(rand.nextInt(nConceptQuestions)).keys().first().safe();	
+		}
+		
+		// If this duplicates the current question, try again (recursively)
+		if (k.getId().equals(currentQuestionId) && nConceptQuestions > 1) return getNewQuestionId(s);
+		
+		return k.getId();
+	}
+
+	static Score getScore(User user) {
+		Key<User> k = key(User.class,user.hashedId);
+		try {
+		return ofy().load().type(Score.class).parent(k).id(user.conceptId).safe();
+		} catch (Exception e) {
+			Score s = new Score(user.hashedId,user.conceptId);
+			ofy().save().entity(s).now();
+			return s;
+		}
+	}
+	
+	static Score getScore(String hashedId) {
+		User user = ofy().load().type(User.class).id(hashedId).now();
+		return getScore(user);
+	}
+
+	static String orderResponses(String[] answers) {
+		if (answers==null) return "";
+		Arrays.sort(answers);
+		String studentAnswer = "";
+		for (String a : answers) studentAnswer = studentAnswer + a;
+		return studentAnswer;
+	}
+
+	static String poseQuestion(Score s, boolean help, int p) throws Exception {
+		StringBuffer buf = new StringBuffer(Util.head);
+		try {
+			if (conceptMap == null) refreshConcepts();
+			Concept c = conceptMap.get(s.conceptId);
+			Question q = ofy().load().type(Question.class).id(s.questionId).now();
+			if (q==null) {
+				s.questionId = getNewQuestionId(s);
+				ofy().save().entity(s);
+				q = ofy().load().type(Question.class).id(s.questionId).now();
+			}
+			if (p==0) p = new Random().nextInt();
+			q.setParameters(p);
+	
+			buf.append("<h1>" + c.title + "</h1>");
+			
+			buf.append("<div style='width:800px; height=300px; overflow=auto; display:flex; align-items:center;'>");
+			if (help) {
+				buf.append("<div>"
+						+ getHelp(q)
+						+ "</div>"
+						+ "<img src=/images/sage.png alt='Confucius Parrot' style='float:right'>");
+			} else {
+				buf.append("<div>"
+						+ "Please submit your answer to the question below.<p>"
+						+ "If you get stuck, I am here to help you, but your score will be higher if you do it by yourself.<p>"
+						+ "<a id=help class=btn role=button href=/sage?Help=true&p=" + p + " onclick=waitForHelp()>Please help me with this question</a>"
+						+ "</div>"
+						+ "<img src=/images/sage.png alt='Confucius Parrot' style='float:right'>");
+			}
+			buf.append("</div>");
+			
+			// include some javascript to change the submit button
+			buf.append("<script>"
+					+ "function waitForHelp() {\n"
+					+ " let a = document.getElementById('help');\n"
+					+ " a.innerHTML = 'Please wait a moment for Sage to answer.';\n"
+					+ "}\n"
+					+ "</script>");
+			
+			buf.append("<hr style='width:800px;margin-left:0'>");  // break between Sage helper panel and question panel
+	
+			// Print the question for the student
+			buf.append("<form method=post style='max-width:800px;' onsubmit='waitForScore();' >"
+					+ "<input type=hidden name=QuestionId value='" + q.id + "' />"
+					+ "<input type=hidden name=Parameter value='" + p + "' />"
+					+ q.print()
+					+ "<input id='sub" + q.id + "' type=submit class='btn' />"
+					+ "</form><p>");
+			
+			// include some javascript to change the submit button
+			buf.append("<script>"
+					+ "function waitForScore() {\n"
+					+ " let b = document.getElementById('sub" + q.id + "');\n"
+					+ " b.disabled = true;\n"
+					+ " b.value = 'Please wait a moment while we score your response.';\n"
+					+ "}\n"
+					+ "</script>");
+		} catch (Exception e) {
+			buf.append("<p>Error: " + e.getMessage()==null?e.toString():e.getMessage());
+		}
+		return buf.toString() + Util.foot;	
+	}
+
+	static String printScore(JsonObject questionScore, Score s, boolean level_up) throws Exception {
+		StringBuffer buf = new StringBuffer(Util.head);
+		
+		buf.append(questionScore.get("details").getAsString());
+		if (s.score == 100) {  // move the user to the next concept
+			buf.append("<h2>Your score is 100%. You have mastered this concept.</h2>");
+			if (conceptMap==null) refreshConcepts();
+			User user = ofy().load().key(s.owner).now();
+			int i = conceptList.indexOf(conceptMap.get(user.conceptId));
+			user.conceptId = conceptList.get(i+1).id;
+			ofy().save().entity(user).now();
+			buf.append("The next concept is: <b>" + conceptList.get(i+1).title + "</b><p>");
+		} else if (level_up) {
+			buf.append("<h3>You have moved up to Level " + (s.score/20 + 1) +".</h3>"
+					+ "<b>Your current score on this concept is " + s.score + "%.</b>");
+		} else {
+			buf.append("<b>Your current score on this concept is " + s.score + "%.</b>");
+		}
+		// print a button to continue
+		buf.append("<p><a class=btn role=button href='/sage'>Continue</a><p>");
+		return buf.toString() + Util.foot;
+	}
+
+	static void refreshConcepts() {
+		conceptList = ofy().load().type(Concept.class).order("orderBy").list();
+		conceptMap = new HashMap<Long,Concept>();
+		for (Concept c : conceptList) conceptMap.put(c.id, c);
 	}
 	
 	static JsonObject scoreQuestion(Score s, HttpServletRequest request) throws Exception {
@@ -368,7 +365,7 @@ public class Sage extends HttpServlet {
 			// get the details for the student
 			switch (rawScore) {
 			case 2:  // correct answer
-
+	
 				details.append("<h1>Congratulations!</h1>"
 						+ "<b>Your answer is correct. </b><IMG SRC=/images/checkmark.gif ALT='Check mark' align=bottom /><p>");
 				break;
@@ -400,41 +397,48 @@ public class Sage extends HttpServlet {
 			default: // just print the solution
 				details.append(q.printAllToStudents(studentAnswer));
 			}
-
+	
 			details.append("</div>"
 					+ "<img id=polly src='/images/" + (rawScore==2?"parrot2.png":(rawScore==1?"parrot1.png":"parrot0.png")) + "' alt='Parrot character' style='margin-left:50px'>"
 					+ "</div>");
-
+	
 			details.append("<script src='/js/report_problem.js'></script>");
 		}
 		questionScore.addProperty("rawScore", rawScore);
 		questionScore.addProperty("details", details.toString());
-
+	
 		return questionScore;
 	}
-	
-	static String orderResponses(String[] answers) {
-		if (answers==null) return "";
-		Arrays.sort(answers);
-		String studentAnswer = "";
-		for (String a : answers) studentAnswer = studentAnswer + a;
-		return studentAnswer;
-	}
 
-	static String printScore(JsonObject questionScore, Score s, boolean level_up) throws Exception {
+	static String start(String hashedId) throws Exception {
+		User user = ofy().load().type(User.class).id(hashedId).now();
+		return start(user);
+	}
+	
+	static String start(User user) throws Exception {
 		StringBuffer buf = new StringBuffer(Util.head);
-		
-		buf.append(questionScore.get("details").getAsString());
-		if (s.score == 100) {
-			buf.append("<h2>Congratulations! Your score is 100%. You have mastered this concept.</h2>");
-		} else if (level_up) {
-			buf.append("<h3>You have moved up to Level " + (s.score/20 + 1) +".</h3>"
-					+ "<b>Your current score on this concept is " + s.score + "%.</b>");
-		} else {
-			buf.append("<b>Your current score on this concept is " + s.score + "%.</b>");
+		try {
+			Score s = getScore(user);
+			user.updateConceptId(s.conceptId);
+			
+			if (conceptMap == null) refreshConcepts();
+			Concept c = conceptMap.get(s.conceptId);
+			
+			if (s.questionId == null) {
+				s.questionId = getNewQuestionId(s);
+				ofy().save().entity(s).now();
+			}
+
+			buf.append("<h1>" + c.title + "</h1>"
+					+ "<div style='max-width:800px'>"
+					+ "<img src=/images/sage.png alt='Confucius Parrot' style='float:right;margin:20px;'>"
+					+ (c.summary==null?ConceptManager.getConceptSummary(c):c.summary) + "<p>"
+					+ "<a class=btn role=button href='/sage'>Continue</a>"
+					+ "</div>");
+
+		} catch (Exception e) {
+			buf.append("<p>Error: " + e.getMessage()==null?e.toString():e.getMessage());
 		}
-		// print a button to continue
-		buf.append("<p><a class=btn role=button href='/sage'>Continue</a><p>");
 		return buf.toString() + Util.foot;
 	}
 }

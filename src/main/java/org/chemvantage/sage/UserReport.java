@@ -56,7 +56,7 @@ public class UserReport implements Serializable {
 		this.submitted = new Date();
 	}
 	
-	public String view() {
+	public String view() throws Exception {
 		StringBuffer buf = new StringBuffer();
 		buf.append("On " + submitted + " a user said:<br>");
 
