@@ -51,7 +51,7 @@ public class Launch extends HttpServlet {
 				response.sendRedirect("/sage");
 			}
 		} catch (Exception e) {
-			response.sendRedirect("/");;
+			out.println(errorPage(e));
 		}
 	}
 	
@@ -96,7 +96,6 @@ public class Launch extends HttpServlet {
 				if (user != null && user.expires.after(now) && user.hashedId.equals(request.getSession().getAttribute("hashedId"))) {  // returning user with active session
 					out.println(Sage.start(hashedId));
 				} else { // no valid session; send login link
-					//String serverUrl = request.getServerName().contains("localhost")?"http://localhost:8080":Util.serverUrl;
 					Util.sendEmail(null,email,"Sage Login Link", tokenMessage(createToken(hashedId),request.getRequestURL().toString()));
 					out.println(emailSent());
 					return;
@@ -181,11 +180,31 @@ public class Launch extends HttpServlet {
 				+ "<div style='width:600px; display:flex; align-items:center;'>"
 				+ "<div>"
 				+ "We sent an email to your address containing a tokenized link to login to Sage.<p>"
-				+ "The link can only be used once, and it will expire in 5 minutes at " + fiveMinutesFromNow + "."
+				+ "The link expires in 5 minutes at <br/>" + fiveMinutesFromNow + "."
 				+ "</div>"
 				+ "<img src=/images/sage.png alt='Confucius Parrot' style='float:right'>"
 				+ "</div>"
 				+ Util.foot;
+	}
+	
+	static String errorPage(Exception e) {
+		StringBuffer buf = new StringBuffer(Util.head);
+		buf.append("<h1>Sorry! An unexpected error occurred.</h1>"
+				+ (e.getMessage()==null?e.toString():e.getMessage()) + "<p>"
+				+ "<form method=post action='/launch' onsubmit=waitForLink(); >"
+				+ "<label>"
+				+ "To start over, please enter your email address:"
+				+ "<input type=text name=Email size=30 /></label>"
+				+ "<input id=sendLink type=submit class=btn /><p>"
+				+ "</form><p>"
+				+ "<script>"
+				+ "	function waitForLink() {"
+				+ "	  let button = document.getElementById('sendLink');"
+				+ "	  button.style = 'opacity:0.3';"
+				+ "	  button.disabled = true;"
+				+ "	}"
+				+ "	</script>");
+		return buf.toString() + Util.foot;
 	}
 
 	static String getHash(String email) throws Exception {
@@ -239,7 +258,7 @@ public class Launch extends HttpServlet {
 			+ "<div style='display:flex; align-items:center;'>"
 			+ "<div>"
 			+ "Please click the tokenized button below to login to your Sage account.<br/>"
-			+ "The link can only be used once, and it will expire in 5 minutes at " + exp + ".<p>"
+			+ "The link expires in 5 minutes at " + exp + ".<p>"
 			+ "<a href='" + serverUrl + "/launch?Token=" + token + "'>"
 			+ "<button style='border:none;color:white;padding:10px 10px;margin:4px 2px;font-size:16px;cursor:pointer;border-radius:10px;background-color:blue;'>"
 			+ "Login to Sage</button></a>"
@@ -253,8 +272,8 @@ public class Launch extends HttpServlet {
 			JWTVerifier verifier = JWT.require(algorithm).build();
 			verifier.verify(token);
 			DecodedJWT decoded = JWT.decode(token);
-			String nonce = decoded.getClaim("nonce").asString();
-			if (!Nonce.isUnique(nonce)) throw new Exception("The login link can only be used once.");
+			//String nonce = decoded.getClaim("nonce").asString();
+			//if (!Nonce.isUnique(nonce)) throw new Exception("The login link can only be used once.");
 			return decoded.getSubject();
 	}
 	
