@@ -33,14 +33,16 @@ public class Concept implements Serializable {
 	private static final long serialVersionUID = 137L;
 	@Id 	Long id;
 	@Index 	String orderBy;
+	@Index	Long chapterId;
 	 		String title;
 	 		String summary;
 	
 	Concept() {}
 
-	Concept(String title,String orderBy,String summary) {
+	Concept(String title,String orderBy, Long chapterId, String summary) {
 		this.title = title;
 		this.orderBy = orderBy;
+		this.chapterId = chapterId;
 		this.summary = summary;
 	}
 }

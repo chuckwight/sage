@@ -63,10 +63,15 @@ public class ConceptManager extends HttpServlet {
 					c = ofy().load().type(Concept.class).id(conceptId).safe();
 					c.title = request.getParameter("title").replaceAll("\'", "&#39;");
 					c.orderBy = request.getParameter("orderBy");
+					c.chapterId = Long.parseLong(request.getParameter("ChapterId"));
 					c.summary = request.getParameter("summary");
 					ofy().save().entity(c).now();
 				} catch (Exception e) {
-					c = new Concept(request.getParameter("title"),request.getParameter("orderBy"),request.getParameter("summary"));
+					Long chapterId = null;
+					try {
+						chapterId = Long.parseLong(request.getParameter("ChapterId"));
+					} catch (Exception e2) {}
+					c = new Concept(request.getParameter("title"),request.getParameter("orderBy"),chapterId,request.getParameter("summary"));
 					ofy().save().entity(c).now();
 				}
 				break;
