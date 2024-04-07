@@ -10,6 +10,7 @@ import java.io.OutputStream;
 import java.io.PrintWriter;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
@@ -93,6 +94,24 @@ public class Sage extends HttpServlet {
 		} catch (Exception e) {
 			response.sendRedirect("/sage");
 		}
+	}
+	
+	static boolean finishedChapter(Score s) {
+		// Identify the current chapter that might be completed
+		Long chapterId = conceptMap.get(s.conceptId).chapterId;
+		// identify all of the concepts assaociated with the current chapter
+		List<Long> chapterConceptIds = new ArrayList<Long>();
+		for (Concept c : conceptList) if (c.chapterId != null && c.chapterId.equals(chapterId)) chapterConceptIds.add(c.id);
+		if (chapterConceptIds.isEmpty()) return false;
+		// gather all of this user's Score entities for the chapterConcepts
+		Map<Long,Score> chapterScores = ofy().load().type(Score.class).parent(s.owner).ids(chapterConceptIds);
+		if (chapterScores.size() < chapterConceptIds.size()) return false; // more concepts to go
+		// check to make sure all Scores are at 100%
+		for (Map.Entry<Long,Score> entry : chapterScores.entrySet()) {
+			if (entry.getValue().score < 100) return false;
+		}
+		// all checks passed, so the chapter is finished
+		return true;
 	}
 	
 	static String getHelp(Question q) throws Exception {
@@ -254,16 +273,39 @@ public class Sage extends HttpServlet {
 
 	static String printScore(JsonObject questionScore, Score s, boolean level_up) throws Exception {
 		StringBuffer buf = new StringBuffer(Util.head);
-		
+		try {
 		buf.append(questionScore.get("details").getAsString());
-		if (s.score == 100) {  // move the user to the next concept
-			buf.append("<h2>Your score is 100%. You have mastered this concept.</h2>");
-			if (conceptMap==null) refreshConcepts();
+		if (s.score == 100) {  // move the user to the next chapter or concept
+			if (conceptList==null) refreshConcepts();
+			buf.append("<h2>Your score is 100%</h2>");
 			User user = ofy().load().key(s.owner).now();
-			int i = conceptList.indexOf(conceptMap.get(user.conceptId));
-			user.conceptId = conceptList.get(i+1).id;
+			if (finishedChapter(s)) {
+				Chapter ch = ofy().load().type(Chapter.class).id(conceptMap.get(s.conceptId).chapterId).now();
+				buf.append("<b>You have completed Chapter " + ch.chapterNumber + ". " + ch.title + "</b>");
+				buf.append("<ul>");
+				for (Concept c : conceptList) if (c.chapterId != null && c.chapterId.equals(ch.id)) buf.append("<li>" + c.title + "</li>");;
+				buf.append("</ul>");
+				Chapter nextChapter = ofy().load().type(Chapter.class).filter("chapterNumber",ch.chapterNumber+1).first().now();
+				if (nextChapter == null) buf.append("<h1>Congratulations, you finished!</h1>");
+				else {
+					buf.append("The next chapter is: <b>" + nextChapter.title + "</b>.<br/>");
+				}
+			} else {  // concept was completed
+				buf.append("You have mastered the concept: <b>" + conceptList.get(conceptList.indexOf(conceptMap.get(user.conceptId))).title +"</b></br/>");
+				// Calculate the number of concepts completed for this chapter
+				List<Long> chapterConceptIds = new ArrayList<Long>();
+				for (Concept c : conceptList) 
+					if (c.chapterId != null && c.chapterId.equals(conceptMap.get(s.conceptId).chapterId)) 
+						chapterConceptIds.add(c.id);
+				int nChapterScores = ofy().load().type(Score.class).parent(s.owner).ids(chapterConceptIds).size();
+				buf.append("You have completed " + nChapterScores + " out of " + chapterConceptIds.size() + " concepts for this chapter.<p>");
+			}
+			// Retrieve the next concept in the list and update the user
+			int conceptIndex = conceptList.indexOf(conceptMap.get(user.conceptId));
+			while (ofy().load().type(Score.class).parent(s.owner).id(conceptList.get(conceptIndex+1).id).now()!=null) conceptIndex++;
+			user.conceptId = conceptList.get(conceptIndex+1).id;
 			ofy().save().entity(user).now();
-			buf.append("The next concept is: <b>" + conceptList.get(i+1).title + "</b><p>");
+			buf.append("The next concept is: <b>" + conceptList.get(conceptIndex+1).title + "</b><p>");
 		} else if (level_up) {
 			buf.append("<h3>You have moved up to Level " + (s.score/20 + 1) +".</h3>"
 					+ "<b>Your current score on this concept is " + s.score + "%.</b>");
@@ -272,7 +314,11 @@ public class Sage extends HttpServlet {
 		}
 		// print a button to continue
 		buf.append("<p><a class=btn role=button href='/sage'>Continue</a><p>");
+		} catch (Exception e) {
+			buf.append("<p>" + e.getMessage()==null?e.toString():e.getMessage());
+		}
 		return buf.toString() + Util.foot;
+		
 	}
 
 	static void refreshConcepts() {
