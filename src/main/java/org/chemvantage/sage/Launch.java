@@ -17,6 +17,7 @@ import com.auth0.jwt.interfaces.JWTVerifier;
 
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
+import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -46,8 +47,14 @@ public class Launch extends HttpServlet {
 			else if (user.expires.before(now)) {  	// subscription expired
 				out.println(checkout(user));
 			}
-			else {  								// continuing user
-				request.getSession().setAttribute("hashedId", hashedId);
+			else { // continuing user: set a Cookie with the hashedId value
+				Cookie cookie = new Cookie("hashedId", hashedId);
+				cookie.setSecure(true);
+				cookie.setHttpOnly(true);
+				cookie.setMaxAge(60 * 60); // 1 hour
+				response.addCookie(cookie);
+				
+				//request.getSession().setAttribute("hashedId", hashedId);
 				response.sendRedirect("/sage");
 			}
 		} catch (Exception e) {
@@ -77,7 +84,14 @@ public class Launch extends HttpServlet {
 				user.conceptId = ofy().load().type(Concept.class).order("orderBy").keys().first().now().getId();
 			}
 			ofy().save().entity(user).now();
-			request.getSession().setAttribute("hashedId", hashedId);
+			
+			Cookie cookie = new Cookie("hashedId", hashedId);
+			cookie.setSecure(true);
+			cookie.setHttpOnly(true);
+			cookie.setMaxAge(60 * 60); // 1 hour
+			response.addCookie(cookie);
+			
+			//request.getSession().setAttribute("hashedId", hashedId);
 			response.sendRedirect("/sage");
 			return;
 		case "Complete Purchase":  // after PayPal payment - from checkout()
@@ -164,14 +178,12 @@ public class Launch extends HttpServlet {
 	static String createToken(String hashedId) throws Exception {
 		Date now = new Date();
 		Date exp = new Date(now.getTime() + 360000L);  // 5 minutes from now
-		String nonce = Nonce.generateNonce();
 		Algorithm algorithm = Algorithm.HMAC256(Util.getHMAC256Secret());
 		
 		String token = JWT.create()
 				.withIssuer(Util.serverUrl)
 				.withSubject(hashedId)
 				.withExpiresAt(exp)
-				.withClaim("nonce", nonce)
 				.sign(algorithm);
 		
 		return token;

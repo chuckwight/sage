@@ -24,10 +24,10 @@ import com.googlecode.objectify.Key;
 
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
+import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import jakarta.servlet.http.HttpSession;
 
 @WebServlet("/sage")
 public class Sage extends HttpServlet {
@@ -42,12 +42,8 @@ public class Sage extends HttpServlet {
 		PrintWriter out = response.getWriter();
 		response.setContentType("text/html");
 		
-		HttpSession session = request.getSession(false);
-		if (session == null) {
-			response.sendRedirect("/");
-			return;
-		}
-		String hashedId = (String)session.getAttribute("hashedId");
+		String hashedId = getFromCookie(request, response);
+		if (hashedId == null) response.sendRedirect("/");
 		
 		try {
 			Score s = getScore(hashedId);
@@ -74,12 +70,8 @@ public class Sage extends HttpServlet {
 		PrintWriter out = response.getWriter();
 		response.setContentType("text/html");
 	
-		HttpSession session = request.getSession(false);
-		if (session == null) {
-			response.sendRedirect("/");
-			return;
-		}
-		String hashedId = (String)session.getAttribute("hashedId");
+		String hashedId = getFromCookie(request, response);
+		if (hashedId == null) response.sendRedirect("/");
 		
 		try {
 			Score s = getScore(hashedId);
@@ -112,6 +104,18 @@ public class Sage extends HttpServlet {
 		}
 		// all checks passed, so the chapter is finished
 		return true;
+	}
+	
+	static String getFromCookie(HttpServletRequest request, HttpServletResponse response) {
+		Cookie[] cookies = request.getCookies();
+		for (Cookie cookie : cookies) {
+			if (cookie.getName().equals("hashedId")) {
+				cookie.setMaxAge(3600);
+				response.addCookie(cookie);
+				return cookie.getValue();
+			}
+		}
+		return null;
 	}
 	
 	static String getHelp(Question q) throws Exception {

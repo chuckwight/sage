@@ -42,12 +42,8 @@ public class Feedback extends HttpServlet {
 	public void doGet(HttpServletRequest request,HttpServletResponse response)
 	throws ServletException, IOException {
 		
-		HttpSession session = request.getSession(false);
-		if (session == null) {
-			response.sendRedirect("/");
-			return;
-		}
-		String hashedId = (String)session.getAttribute("hashedId");
+		String hashedId = Sage.getFromCookie(request, response);
+		if (hashedId == null) response.sendRedirect("/");
 		
 		String userRequest = request.getParameter("UserRequest");
 		if (userRequest == null) userRequest = "";
@@ -67,12 +63,8 @@ public class Feedback extends HttpServlet {
 		response.setContentType("text/html");
 		PrintWriter out = response.getWriter();
 
-		HttpSession session = request.getSession(false);
-		if (session == null) {
-			response.sendRedirect("/");
-			return;
-		}
-		String hashedId = (String)session.getAttribute("hashedId");
+		String hashedId = Sage.getFromCookie(request, response);
+		if (hashedId == null) response.sendRedirect("/");
 		
 		String userRequest = request.getParameter("UserRequest");
 		if (userRequest == null) userRequest = "";
