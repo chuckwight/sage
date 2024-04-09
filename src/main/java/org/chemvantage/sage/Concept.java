@@ -39,7 +39,8 @@ public class Concept implements Serializable {
 	
 	Concept() {}
 
-	Concept(String title,String orderBy, Long chapterId, String summary) {
+	Concept(Long id,String title,String orderBy, Long chapterId, String summary) {
+		this.id = id;
 		this.title = title;
 		this.orderBy = orderBy;
 		this.chapterId = chapterId;
