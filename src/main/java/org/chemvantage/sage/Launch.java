@@ -45,7 +45,7 @@ public class Launch extends HttpServlet {
 				out.println(welcomePage(hashedId));
 			}
 			else if (user.expires.before(now)) {  	// subscription expired
-				out.println(checkout(user));
+				out.println(checkout(user, request.getRequestURL().toString()));
 			}
 			else { // continuing user: set a Cookie with the hashedId value
 				Cookie cookie = new Cookie("hashedId", hashedId);
@@ -125,7 +125,7 @@ public class Launch extends HttpServlet {
 		}
 	}
 
-	static String checkout(User user) {		
+	static String checkout(User user, String serverURL) {		
 		/*
 		 * The base monthly price (currently $5.00) is set in the checkout_student.js file
 		 */
@@ -159,7 +159,7 @@ public class Launch extends HttpServlet {
 				+ "  </div>"
 				+ "</div>\n");
 		
-		buf.append("<script src='https://www.paypal.com/sdk/js?client-id=" + Util.getPayPalClientId() +"&enable-funding=venmo&currency=USD'></script>\n");
+		buf.append("<script src='https://www.paypal.com/sdk/js?client-id=" + Util.getPayPalClientId(serverURL) +"&enable-funding=venmo&currency=USD'></script>\n");
 		buf.append("<script src='/js/checkout_student.js'></script>");
 		buf.append("<script>initPayPalButton('" + user.hashedId + "')</script>");
 		

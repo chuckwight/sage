@@ -24,7 +24,8 @@ public class Util {
 	private String salt = "ChangeMe";
 	private String announcement = "";
 	private String sendGridAPIKey = "ChangeMe";
-	private String payPalClientId = "ChangeMe";
+	private String payPalSandboxClientId = "ChangeMe";
+	private String payPalDefaultClientId = "ChangeMe";
 	
 	private static Util u;
 	
@@ -56,16 +57,19 @@ public class Util {
 	private Util() {}
 	
 	static public String getAnnouncement() {if (u==null) init(); return u.announcement;}
-
 	static public String getHMAC256Secret() {if (u==null) init(); return u.HMAC256Secret;}
 	static public String getOpenAIKey() {if (u==null) init(); return u.openai_key;}
-
-	static public String getPayPalClientId() {if (u==null) init(); return u.payPalClientId;}
-
 	static public String getReCaptchaSecret() {if (u==null) init(); return u.reCaptchaSecret;}
 	static public String getReCaptchaSiteKeyt() {if (u==null) init(); return u.reCaptchaSiteKey;}
 	static public String getSalt() {if (u==null) init(); return u.salt;}
 	static public String getSendGridAPIKey() {if (u==null) init(); return u.sendGridAPIKey;}
+	static public String getPayPalClientId(String serverName) {
+		if (u==null) init();
+		if (serverName.contains("localhost")) return u.payPalSandboxClientId;
+		else return u.payPalDefaultClientId;
+	}
+
+	
 	static private void init() {
 		if (u==null) {
 			try {
