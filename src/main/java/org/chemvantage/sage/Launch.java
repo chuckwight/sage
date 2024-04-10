@@ -8,6 +8,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.Calendar;
 import java.util.Date;
+import java.util.List;
 import java.util.regex.Pattern;
 
 import com.auth0.jwt.JWT;
@@ -296,7 +297,7 @@ public class Launch extends HttpServlet {
 	
 	String welcomePage(String hashedId) {
 		StringBuffer buf = new StringBuffer(Util.head);
-		Concept firstConcept = ofy().load().type(Concept.class).order("orderBy").first().now();
+		List<Concept> firstConcepts = ofy().load().type(Concept.class).order("orderBy").limit(4).list();
 		buf.append("<h1>Welcome to Sage</h1>"
 				+ "<h2>Sage is an AI-powered tutor for General Chemistry.</h2>"
 				+ "<div style='max-width:800px;'>"
@@ -311,9 +312,10 @@ public class Launch extends HttpServlet {
 				+ "<input type=hidden name=HashedId value=" + hashedId + " />"
 				+ "<label><input type=checkbox required name=Terms />I agree to the <a href=/terms_and_conditions.html target=_blank>Sage Terms and Conditions of Use</a></label><br/>"
 				+ "<label><input type=checkbox required name=Terms />I understand that Sage subscription fees are nonrefundable.</label><p>"
-				+ "This tutorial is organized around 100 key concepts normally taught in a college-level General Chemistry course.<br/>"
-				+ "<h3>The first concept is: " + firstConcept.title + "</h3>"
-				+ "<input type=hidden name=ConceptId value='" + firstConcept.id + "' >"
+				+ "This tutorial is organized around 100 key concepts normally taught in a college-level General Chemistry course.<p>"
+				+ "Select a starting point for this tutorial:<br/>"
+				+ "<label><input type=radio name=ConceptId value='" + firstConcepts.get(0).id + "' checked > Help me to prepare for General Chemistry.</label><br/>"
+				+ "<label><input type=radio name=ConceptId value='" + firstConcepts.get(3).id + "' > I'm ready! Start the General Chemistry tutorial.</label><br/>"
 				+ "<input class=btn type=submit name=UserRequest value='Start' />"
 				+ "</form>");
 		return buf.toString() + Util.foot;
