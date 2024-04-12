@@ -165,7 +165,6 @@ public class QuestionManager extends HttpServlet {
 		q.difficulty = difficulty;
 		q.parameterString = parameterString;
 		q.solution = request.getParameter("Solution");
-		q.notes = "";
 		q.authorId = request.getParameter("AuthorId");
 		q.editorId = request.getParameter("EditorId");
 		q.scrambleChoices = Boolean.parseBoolean(request.getParameter("ScrambleChoices"));
