@@ -213,9 +213,7 @@ public class Sage extends HttpServlet {
 				}
 			}
 			return null;
-		} catch (Exception e) {
-			response.sendRedirect("/");
-		}
+		} catch (Exception e) {}
 		return null;
 	}
 	

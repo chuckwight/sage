@@ -113,9 +113,9 @@ public class Launch extends HttpServlet {
 				user = ofy().load().type(User.class).id(hashedId).now();
 				Date now  = new Date();
 
-				if (user != null && user.expires.after(now) && user.hashedId.equals(Sage.getFromCookie(request, response))) {  // returning user with active session
+				if (user != null && user.expires.after(now) && user.hashedId.equals(Sage.getFromCookie(request, response))) {  // returning user with active Cookie
 					out.println(Sage.start(user));
-				} else { // no valid session; send login link
+				} else { // no valid Cookie; send login link
 					Util.sendEmail(null,email,"Sage Login Link", tokenMessage(createToken(hashedId),request.getRequestURL().toString()));
 					out.println(emailSent());
 					return;
