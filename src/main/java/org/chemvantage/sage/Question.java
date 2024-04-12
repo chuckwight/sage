@@ -55,7 +55,7 @@ public class Question implements Serializable, Cloneable {
 			String authorId;
 			String contributorId;
 			String editorId;
-			String notes;
+			String sageAdvice;
 			boolean scrambleChoices;
 			boolean strictSpelling;
 	private Integer nCorrectAnswers = null;
@@ -111,7 +111,6 @@ public class Question implements Serializable, Cloneable {
 		this.authorId = authorId;
 		this.contributorId = contributorId;
 		this.editorId = editorId;
-		this.notes = "";
 		this.isActive = false;
 	}
 
@@ -125,7 +124,6 @@ public class Question implements Serializable, Cloneable {
 		if (authorId==null) authorId="";
 		if (contributorId==null) contributorId="";
 		if (editorId==null) editorId="";
-		if (notes==null) notes="";
 	}
 	public Long getId() {
 		return this.id;

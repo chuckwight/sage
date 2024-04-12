@@ -226,6 +226,8 @@ public class Sage extends HttpServlet {
 	}
 	
 	static String getHelp(Question q) throws Exception {
+		if (q.sageAdvice != null) return q.sageAdvice; // stored AI response
+		
 		BufferedReader reader = null;
 		JsonObject api_request = new JsonObject();  // these are used to score essay questions using ChatGPT
 		api_request.addProperty("model","gpt-4");
@@ -237,7 +239,7 @@ public class Sage extends HttpServlet {
 		m1.addProperty("role", "system");
 		m1.addProperty("content","You are a tutor assisting a college student taking General Chemistry. "
 				+ "The student is requesting your help to answer a homework question. Guide the student "
-				+ "in the right general direction, but do not give them the answer to the question.");
+				+ "in the right general direction, but do not give the correct answer to the question.");
 		messages.add(m1);;
 		JsonObject m2 = new JsonObject();  // api request message
 		m2 = new JsonObject();  // api request message
@@ -264,6 +266,11 @@ public class Sage extends HttpServlet {
 		reader.close();
 		
 		String content = api_response.get("choices").getAsJsonArray().get(0).getAsJsonObject().get("message").getAsJsonObject().get("content").getAsString();
+		
+		// Save the response for the next time a user needs help with this question
+		q.sageAdvice = content;
+		ofy().save().entity(q);
+		
 		return content;
 	}
 
