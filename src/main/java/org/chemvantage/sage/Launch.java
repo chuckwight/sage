@@ -314,7 +314,7 @@ public class Launch extends HttpServlet {
 				+ "<label><input type=checkbox required name=Terms />I understand that Sage subscription fees are nonrefundable.</label><p>"
 				+ "This tutorial is organized around 100 key concepts normally taught in a college-level General Chemistry course.<p>"
 				+ "Select a starting point for this tutorial:<br/>"
-				+ "<label><input type=radio name=ConceptId value='" + firstConcepts.get(0).id + "' checked > Help me to prepare for General Chemistry.</label><br/>"
+				+ "<label><input type=radio name=ConceptId value='" + firstConcepts.get(0).id + "' checked > Prepare for a General Chemistry placement exam.</label><br/>"
 				+ "<label><input type=radio name=ConceptId value='" + firstConcepts.get(3).id + "' > I'm ready! Start the General Chemistry tutorial.</label><br/>"
 				+ "<input class=btn type=submit name=UserRequest value='Start' />"
 				+ "</form>");
