@@ -258,16 +258,7 @@ public class Question implements Serializable, Cloneable {
 	}
 	
 	public String print() {
-		return print("","");
-	}
-	
-	public String print(String showWork,String studentAnswer) {
-		return print(showWork,studentAnswer,null);
-	}
-	
-	public String print(String showWork,String studentAnswer,Integer attemptsRemaining) {
 		StringBuffer buf = new StringBuffer();
-		String placeholder = attemptsRemaining==null?"":(" (" + attemptsRemaining + " attempt" + (attemptsRemaining==1?"":"s") + " remaining)");
 		char choice = 'a';
 		List<Character> choice_keys = new ArrayList<Character>();
 		Random rand = new Random();
@@ -278,17 +269,15 @@ public class Question implements Serializable, Cloneable {
 			buf.append("<span style='color:#EE0000;font-size: small;'>Select only the best answer:</span><br/>");
 			while (choice_keys.size()>0) {
 				choice = choice_keys.remove(scrambleChoices?rand.nextInt(choice_keys.size()):0);
-				buf.append("<label><input type=radio name=" + this.id + " value=" + choice + (studentAnswer.indexOf(choice)>=0?" CHECKED /> ":" /> ") + choices.get(choice-'a') + "</label><br/>");
+				buf.append("<label><input type=radio name=" + this.id + " value=" + choice + " /> " + choices.get(choice-'a') + "</label><br/>");
 			}
-			buf.append("<span style='color: gray; font-size: 0.8em;'>" + placeholder + "</span><br/>");
 			break;
 		case 2: // True/False
 			buf.append(text);
 			buf.append("<br/>");
 			buf.append("<span style='color:#EE0000;font-size: small;'>Select true or false:</span><br/>");
-			buf.append("<label><input type=radio name=" + this.id + " value='true'" + (studentAnswer.equals("true")?" CHECKED />":" />") + " True</label><br/>");
-			buf.append("<label><input type=radio name=" + this.id + " value='false'" + (studentAnswer.equals("false")?" CHECKED />":" />") + " False</label><br/>");
-			buf.append("<span style='color: gray; font-size: 0.8em;'>" + placeholder + "</span><br/>");
+			buf.append("<label><input type=radio name=" + this.id + " value='true' /> True</label><br/>");
+			buf.append("<label><input type=radio name=" + this.id + " value='false' /> False</label><br/>");
 			break;
 		case 3: // Select Multiple
 			buf.append(text + "<br/>");
@@ -296,25 +285,20 @@ public class Question implements Serializable, Cloneable {
 			buf.append("<span style='color:#EE0000;font-size: small;'>Select all of the correct answers:</span><br/>");
 			while (choice_keys.size()>0) {
 				choice = choice_keys.remove(scrambleChoices?rand.nextInt(choice_keys.size()):0);
-				buf.append("<label><input type=checkbox name=" + this.id + " value=" + choice + (studentAnswer.indexOf(choice)>=0?" CHECKED /> ":" /> ") + choices.get(choice-'a') + "</label><br/>");
+				buf.append("<label><input type=checkbox name=" + this.id + " value=" + choice + " /> " + choices.get(choice-'a') + "</label><br/>");
 			}
-			buf.append("<span style='color: gray; font-size: 0.8em;'>" + placeholder + "</span><br/>");
 			break;
 		case 4: // Fill-in-the-Word
 			buf.append(text);
 			buf.append("<br/>");
 			buf.append("<span style='color:#EE0000;font-size: small;'>Enter the correct word or phrase:</span><br/>");
-			buf.append("<label><input id=" + this.id + " type=text name=" + this.id + " value='" + quot2html(studentAnswer) + "' placeholder='" + placeholder + "' />");
+			buf.append("<label><input id=" + this.id + " type=text name=" + this.id + " />");
 			buf.append("&nbsp;" + tag + "</label><br/><br/>");
 			break;
 		case 5: // Numeric Answer
 			buf.append(parseString(text));
 			buf.append("<br/>");
-			buf.append("<div id=showWork" + this.id + " style='display:none'>"
-					+ "<label>Show your work:<br/><TEXTAREA NAME=ShowWork" + this.id + " ROWS=5 COLS=50 WRAP=SOFT "
-					+ "onkeyup=this.value=this.value.substring(0,500); placeholder='Show your work here'>" + (showWork==null?"":showWork) + "</TEXTAREA>"
-					+ "</label><br/></div>");
-			//buf.append("<label>");
+			
 			switch (getNumericItemType()) {
 			case 0: buf.append("<span style='color:#EE0000;font-size: small;'>Enter the exact value. <a href=# onclick=\"alert('Your answer must have exactly the correct value. You may use scientific E notation. Example: enter 3.56E-12 to represent the number 3.56\u00D710\u207B\u00B9\u00B2');return false;\">&#9432;</a></span><br/>"); break;
 			case 1: buf.append("<span style='color:#EE0000;font-size: small;'>Enter the value with the appropriate number of significant figures. <a href=# onclick=\"alert('Use the information in the problem to determine the correct number of sig figs in your answer. You may use scientific E notation. Example: enter 3.56E-12 to represent the number 3.56\u00D710\u207B\u00B9\u00B2');return false;\">&#9432;</a></span><br/>"); break;
@@ -323,7 +307,7 @@ public class Question implements Serializable, Cloneable {
 			case 3: buf.append("<span style='color:#EE0000;font-size: small;'>Enter the value with the appropriate number of significant figures. <a href=# onclick=\"alert('Use the information in the problem to determine the correct number of sig figs in your answer. You may use scientific E notation. Example: enter 3.56E-12 to represent the number 3.56\u00D710\u207B\u00B9\u00B2');return false;\">&#9432;</a></span><br/>"); break;
 			default:
 			}
-			buf.append("<label><input size=25 type=text name=" + this.id + " id=answer" + this.id + " value='" + studentAnswer + "' placeholder='" + placeholder + "' onFocus=showWorkBox('" + this.id + "'); />");
+			buf.append("<label><input size=25 type=text name=" + this.id + " id=answer" + this.id + " />");
 			buf.append("&nbsp;" + parseString(tag) + "</label><br/><br/>");
 			break;        
 		case 6: // FIVE_STAR rating
@@ -349,7 +333,6 @@ public class Question implements Serializable, Cloneable {
 					+ "</script>\n");
 			int initialStars = 0;
 			try { 
-				initialStars = Integer.parseInt(studentAnswer);
 				buf.append("<script>showStars" + this.id + "(" + initialStars + ",true);</script>");
 			} catch (Exception e) {}
 			break;
@@ -357,7 +340,7 @@ public class Question implements Serializable, Cloneable {
 			buf.append(text);
 			buf.append("<br/>");
 			buf.append("<span style='color:#990000;font-size:small;'>(800 characters max):</span><br/>");
-			buf.append("<textarea id=" + this.id + " name=" + this.id + " rows=5 cols=60 wrap=soft placeholder='Enter your answer here' maxlength=800 >" + studentAnswer + "</textarea><br>");
+			buf.append("<textarea id=" + this.id + " name=" + this.id + " rows=5 cols=60 wrap=soft placeholder='Enter your answer here' maxlength=800 ></textarea><br>");
 			break;
 		}
 		return buf.toString();

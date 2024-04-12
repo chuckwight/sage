@@ -69,23 +69,119 @@ public class Sage extends HttpServlet {
 		
 		PrintWriter out = response.getWriter();
 		response.setContentType("text/html");
-	
+
 		String hashedId = getFromCookie(request, response);
 		if (hashedId == null) response.sendRedirect("/");
+
+		String userRequest = request.getParameter("UserRequest");
+		if (userRequest == null) userRequest = "";
+
+		Score s = getScore(hashedId);
 		
-		try {
-			Score s = getScore(hashedId);
-			JsonObject questionScore = scoreQuestion(s,request);
-			if (questionScore == null) {
-				doGet(request,response);
+		switch (userRequest) {
+		case "Ask Sage":
+			try {
+				String topic = request.getParameter("Topic");
+				String userPrompt = request.getParameter("UserPrompt");
+				String nonce = request.getParameter("Nonce");
+				if (!Nonce.isUnique(nonce)) throw new Exception("replay attempt");
+				out.println(askSage(topic,s,userPrompt));
 				return;
+			} catch (Exception e) {
+				out.println(Util.head
+						+ "<h1>Sorry, Sage is temporarily unavailable to answer your question.</h1>"
+						+ "Please try again later.&nbsp;<a class=btn role=button href='/sage'>Continue</a>"
+						+ Util.foot);
 			}
-			boolean level_up = s.update(questionScore);
-			ofy().save().entity(s).now();
-			out.println(printScore(questionScore,s,level_up));
-		} catch (Exception e) {
-			response.sendRedirect("/sage");
+			break;
+		default:
+			try {
+				JsonObject questionScore = scoreQuestion(s,request);
+				if (questionScore == null) {
+					doGet(request,response);
+					return;
+				}
+				boolean level_up = s.update(questionScore);
+				ofy().save().entity(s).now();
+				out.println(printScore(questionScore,s,level_up));
+			} catch (Exception e) {
+				response.sendRedirect("/sage");
+			}
 		}
+	}
+
+	static String askAQuestion(String topic) {
+		StringBuffer buf = new StringBuffer();
+		//buf.append("<button id=askButton class=btn onClick=showAskForm(); >Ask Sage a Question</button>");
+		buf.append("<div id=askForm >" //style='display:none' >"
+				+ "If you have any question for Sage about <b>" + topic + "</b> you may ask it here:<br/>"
+				+ "<form method=post action='/sage' onSubmit=document.getElementById('ask').disabled=true;document.getElementById('ask').value='Please wait a moment for Sage to answer'; >"
+				+ "<input type=hidden name=Topic value='" + topic + "' />"
+				+ "<input type=hidden name=Nonce value=" + Nonce.getHexString() + " />"
+				+ "<textarea rows=4 cols=80 name=UserPrompt ></textarea><br/>"
+				+ "<input type=submit id=ask class=btn name=UserRequest value='Ask Sage' />"
+				+ "</form><p>"
+				+ "</div>\n");
+		
+		buf.append("<script>"
+				+ "function showAskForm() {"
+				+ " document.getElementById('askButton').style='display:none;';"
+				+ " document.getElementById('askForm').style='display:inline;';"
+				+ "}"
+				+ "</script>"); 
+				
+		return buf.toString();
+	}
+
+	static String askSage(String topic, Score s, String userPrompt) {
+		StringBuffer buf = new StringBuffer(Util.head);
+		try {
+			BufferedReader reader = null;
+			JsonObject api_request = new JsonObject();  // these are used to score essay questions using ChatGPT
+			api_request.addProperty("model","gpt-4");
+			api_request.addProperty("max_tokens",400);
+			api_request.addProperty("temperature",0.4);
+			
+			JsonArray messages = new JsonArray();
+			JsonObject m1 = new JsonObject();  // api request message
+			m1.addProperty("role", "system");
+			m1.addProperty("content","You are a tutor assisting a college student taking General Chemistry. "
+					+ "The student has successfully completed " + s.score + "% of the exercises on the topic of " + topic + " "
+					+ "and has a question for you. You must restrict your answer to this topic in General Chemistry.");
+			messages.add(m1);;
+			JsonObject m2 = new JsonObject();  // api request message
+			m2 = new JsonObject();  // api request message
+			m2.addProperty("role", "user");
+			m2.addProperty("content",userPrompt);
+			messages.add(m2);
+			api_request.add("messages", messages);
+			URL u = new URL("https://api.openai.com/v1/chat/completions");
+			HttpURLConnection uc = (HttpURLConnection) u.openConnection();
+			uc.setRequestMethod("POST");
+			uc.setDoInput(true);
+			uc.setDoOutput(true);
+			uc.setRequestProperty("Authorization", "Bearer " + Util.getOpenAIKey());
+			uc.setRequestProperty("Content-Type", "application/json");
+			uc.setRequestProperty("Accept", "application/json");
+			OutputStream os = uc.getOutputStream();
+			byte[] json_bytes = api_request.toString().getBytes("utf-8");
+			os.write(json_bytes, 0, json_bytes.length);           
+			os.close();
+				
+			reader = new BufferedReader(new InputStreamReader(uc.getInputStream()));
+			JsonObject api_response = JsonParser.parseReader(reader).getAsJsonObject();
+			reader.close();
+			
+			String content = api_response.get("choices").getAsJsonArray().get(0).getAsJsonObject().get("message").getAsJsonObject().get("content").getAsString();
+			
+			buf.append("<h1>Sage Response</h1>");
+			buf.append(content + "<p>");
+			buf.append("<p><a class=btn role=button href='/sage'>Continue</a><p>");
+			
+		} catch (Exception e) {
+			buf.append("<p>Error: " + (e.getMessage()==null?e.toString():e.getMessage()) + "<p>");
+		}
+		return buf.toString() + Util.foot;
 	}
 	
 	static boolean finishedChapter(Score s) {
@@ -106,14 +202,19 @@ public class Sage extends HttpServlet {
 		return true;
 	}
 	
-	static String getFromCookie(HttpServletRequest request, HttpServletResponse response) {
-		Cookie[] cookies = request.getCookies();
-		for (Cookie cookie : cookies) {
-			if (cookie.getName().equals("hashedId")) {
-				cookie.setMaxAge(3600);
-				response.addCookie(cookie);
-				return cookie.getValue();
+	static String getFromCookie(HttpServletRequest request, HttpServletResponse response) throws IOException {
+		try {
+			Cookie[] cookies = request.getCookies();
+			for (Cookie cookie : cookies) {
+				if (cookie.getName().equals("hashedId")) {
+					cookie.setMaxAge(3600);
+					response.addCookie(cookie);
+					return cookie.getValue();
+				}
 			}
+			return null;
+		} catch (Exception e) {
+			response.sendRedirect("/");
 		}
 		return null;
 	}
@@ -188,9 +289,9 @@ public class Sage extends HttpServlet {
 	}
 
 	static Score getScore(User user) {
-		Key<User> k = key(User.class,user.hashedId);
+		Key<User> k = key(user);
 		try {
-		return ofy().load().type(Score.class).parent(k).id(user.conceptId).safe();
+			return ofy().load().type(Score.class).parent(k).id(user.conceptId).safe();
 		} catch (Exception e) {
 			Score s = new Score(user.hashedId,user.conceptId);
 			ofy().save().entity(s).now();
@@ -276,13 +377,16 @@ public class Sage extends HttpServlet {
 	}
 
 	static String printScore(JsonObject questionScore, Score s, boolean level_up) throws Exception {
+		// Prepare a section that allows the user to ask Sage a question
+		if (conceptList==null) refreshConcepts();
+		User user = ofy().load().key(s.owner).now();
+		String topic = conceptList.get(conceptList.indexOf(conceptMap.get(user.conceptId))).title;
+		
 		StringBuffer buf = new StringBuffer(Util.head);
 		try {
 		buf.append(questionScore.get("details").getAsString());
 		if (s.score == 100) {  // move the user to the next chapter or concept
-			if (conceptList==null) refreshConcepts();
 			buf.append("<h2>Your score is 100%</h2>");
-			User user = ofy().load().key(s.owner).now();
 			if (finishedChapter(s)) {
 				Chapter ch = ofy().load().type(Chapter.class).id(conceptMap.get(s.conceptId).chapterId).now();
 				buf.append("<b>You have completed Chapter " + ch.chapterNumber + ". " + ch.title + "</b>");
@@ -295,7 +399,7 @@ public class Sage extends HttpServlet {
 					buf.append("The next chapter is: <b>" + nextChapter.title + "</b>.<br/>");
 				}
 			} else {  // concept was completed
-				buf.append("You have mastered the concept: <b>" + conceptList.get(conceptList.indexOf(conceptMap.get(user.conceptId))).title +"</b></br/>");
+				buf.append("You have mastered the concept: <b>" + topic +"</b></br/>");
 				// Calculate the number of concepts completed for this chapter
 				List<Long> chapterConceptIds = new ArrayList<Long>();
 				for (Concept c : conceptList) 
@@ -304,25 +408,44 @@ public class Sage extends HttpServlet {
 				int nChapterScores = ofy().load().type(Score.class).parent(s.owner).ids(chapterConceptIds).size();
 				buf.append("You have completed " + nChapterScores + " out of " + chapterConceptIds.size() + " concepts for this chapter.<p>");
 			}
+			buf.append(askAQuestion(topic));
 			// Retrieve the next concept in the list and update the user
 			int conceptIndex = conceptList.indexOf(conceptMap.get(user.conceptId));
 			while (ofy().load().type(Score.class).parent(s.owner).id(conceptList.get(conceptIndex+1).id).now()!=null) conceptIndex++;
 			user.conceptId = conceptList.get(conceptIndex+1).id;
 			ofy().save().entity(user).now();
-			buf.append("The next concept is: <b>" + conceptList.get(conceptIndex+1).title + "</b><p>");
+			buf.append("The next concept is: <b>" + conceptList.get(conceptIndex+1).title + "</b>&nbsp;");
 		} else if (level_up) {
 			buf.append("<h3>You have moved up to Level " + (s.score/20 + 1) +".</h3>"
-					+ "<b>Your current score on this concept is " + s.score + "%.</b>");
+					+ "<b>Your current score on this concept is " + s.score + "%.</b>&nbsp;");
+			if (s.score >= 60 && s.score < 80) buf.append("<p>" + askAQuestion(topic) + "Otherwise...");
 		} else {
-			buf.append("<b>Your current score on this concept is " + s.score + "%.</b>");
+			buf.append("<p><b>Your current score on this concept is " + s.score + "%.</b>&nbsp;");
 		}
 		// print a button to continue
-		buf.append("<p><a class=btn role=button href='/sage'>Continue</a><p>");
+		buf.append("<a class=btn role=button href='/sage'>Continue</a><p>");
 		} catch (Exception e) {
 			buf.append("<p>" + e.getMessage()==null?e.toString():e.getMessage());
 		}
 		return buf.toString() + Util.foot;
 		
+	}
+
+	static String printSolution(Question q, String studentAnswer,JsonObject api_score) throws Exception {
+		StringBuffer buf = new StringBuffer();
+		buf.append("<div id=solution style='display:none'>");
+		switch (q.getQuestionType()) {
+		case 6:  // five-star rating
+			buf.append("Your rating has been recorded, thank you.");
+		case 7:  // short_essay
+			buf.append(api_score.get("feedback") + "<p>");
+			break;
+		default: // just print the solution
+			buf.append(q.printAllToStudents(studentAnswer));
+		}	
+		buf.append("</div>");			
+		buf.append("<script src='/js/report_problem.js'></script>");
+		return buf.toString();
 	}
 
 	static void refreshConcepts() {
@@ -409,6 +532,13 @@ public class Sage extends HttpServlet {
 		
 		// Create a header section for results
 		int questionType = q.getQuestionType();
+		String showMeLink = "<a href=# "
+				+ " onClick=\""
+				+ "   document.getElementById('solution').style='display:inline';"
+				+ "   document.getElementById('result').style='display:none';"
+				+ "   document.getElementById('polly').style='display:none';\">"
+				+ "Show me the solution"
+				+ "</a>";
 		
 		if (questionType==6) details.append("<h1>Thank you for your rating.</h1>");
 		else {
@@ -417,42 +547,40 @@ public class Sage extends HttpServlet {
 			case 2:  // correct answer
 	
 				details.append("<h1>Congratulations!</h1>"
-						+ "<b>Your answer is correct. </b><IMG SRC=/images/checkmark.gif ALT='Check mark' align=bottom /><p>");
+						+ "<div style='width:800px;display:flex;align-items:center;'>"
+						+ " <div id=result>"
+						+ "  <b>Your answer is correct. </b><IMG SRC=/images/checkmark.gif ALT='Check mark' align=bottom /><p>"
+						+ showMeLink
+						+ " </div>"
+						+ printSolution(q,studentAnswer,api_score)
+						+ "<img id=polly src='/images/parrot2.png' alt='Parrot character' style='margin-left:20px;'>"
+						+ "</div>");
 				break;
 			case 1: // partial credit			
 				details.append("<h1>Your answer is partially correct</h1>"
-						+ "<b>You received half credit.</b><p>");
+						+ "<div style='width:800px;display:flex; align-items:center;'>"
+						+ " <div id=result>"
+						+ "  <b>You received half credit.</b><p>"
+						+ showMeLink
+						+ " </div>"
+						+ printSolution(q,studentAnswer,api_score)
+						+ "<img id=polly src='/images/parrot1.png' alt='Parrot character' style='margin-left:20px;'>"
+						+ "</div>");
 				break;
 			case 0: // wrong answer
 				details.append("<h1>Sorry, your answer is not correct.<IMG SRC=/images/xmark.png ALT='X mark' align=middle></h1>"
-						+ "<div style='max-width:600px;'>"
-						+ "<b>Don't give up!</b><br/>\n"
-						+ "If you feel frustrated, take a break. You can read more about this concept in a "
-						+ "<a href=https://openstax.org/details/books/chemistry-2e target=_openstax>free online chemistry textbook</a> "
-						+ "published by OpenStax. When you're refreshed, you can come back and continue your progress here.<p></div>");
+						+ "<div style='width:800px;display:flex; align-items:center;'>"
+						+ " <div id=result><b>Don't give up!</b><br/>\n"
+						+ "  If you feel frustrated, take a break. You can read more about this concept in a "
+						+ "  <a href=https://openstax.org/details/books/chemistry-2e target=_openstax>free online chemistry textbook</a> "
+						+ "  published by OpenStax. When you're refreshed, you can come back and continue your progress here.<p>"
+						+ showMeLink
+						+ " </div>"
+						+ printSolution(q,studentAnswer,api_score)
+						+ "<img id=polly src='/images/parrot0.png' alt='Parrot character' style='margin-left:20px;'>"
+						+ "</div>");
 				break;
 			}
-			
-			details.append("<hr style='margin-left:0;width:600px;'>");
-			
-			details.append("<div style='max-width:600px; display:flex; align-items:center;'>"
-					+ "<a id=showLink href=# onClick=document.getElementById('solution').style='display:inline';this.style='display:none';document.getElementById('polly').style='display:none';>(show me)</a>"
-					+ "<div id=solution style='display:none'>");
-			switch (questionType) {
-			case 6:  // five-star rating
-				details.append("Your rating has been recorded, thank you.");
-			case 7:  // short_essay
-				details.append(api_score.get("feedback") + "<p>");
-				break;
-			default: // just print the solution
-				details.append(q.printAllToStudents(studentAnswer));
-			}
-	
-			details.append("</div>"
-					+ "<img id=polly src='/images/" + (rawScore==2?"parrot2.png":(rawScore==1?"parrot1.png":"parrot0.png")) + "' alt='Parrot character' style='margin-left:50px'>"
-					+ "</div>");
-	
-			details.append("<script src='/js/report_problem.js'></script>");
 		}
 		questionScore.addProperty("rawScore", rawScore);
 		questionScore.addProperty("details", details.toString());
