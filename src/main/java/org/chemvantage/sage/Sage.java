@@ -110,16 +110,17 @@ public class Sage extends HttpServlet {
 		}
 	}
 
-	static String askAQuestion(String topic) {
+	static String askAQuestion(String topic, String nonce) {
 		StringBuffer buf = new StringBuffer();
-		//buf.append("<button id=askButton class=btn onClick=showAskForm(); >Ask Sage a Question</button>");
-		buf.append("<div id=askForm >" //style='display:none' >"
+		buf.append("<button id=askButton class=btn onClick=showAskForm(); >Ask Sage a Question</button>");
+		buf.append("<div id=askForm style='display:none;' >"
 				+ "If you have any question for Sage about <b>" + topic + "</b> you may ask it here:<br/>"
-				+ "<form method=post action='/sage' onSubmit=document.getElementById('ask').disabled=true;document.getElementById('ask').value='Please wait a moment for Sage to answer'; >"
+				+ "<form method=post action=/sage onsubmit='waitForScore();'>"
 				+ "<input type=hidden name=Topic value='" + topic + "' />"
-				+ "<input type=hidden name=Nonce value=" + Nonce.getHexString() + " />"
+				+ "<input type=hidden name=Nonce value='" + nonce + "' />"
+				+ "<input type=hidden name=UserRequest value='Ask Sage' />"
 				+ "<textarea rows=4 cols=80 name=UserPrompt ></textarea><br/>"
-				+ "<input type=submit id=ask class=btn name=UserRequest value='Ask Sage' />"
+				+ "<input id=ask type=submit class=btn value='Ask Sage' />"
 				+ "</form><p>"
 				+ "</div>\n");
 		
@@ -128,6 +129,11 @@ public class Sage extends HttpServlet {
 				+ " document.getElementById('askButton').style='display:none;';"
 				+ " document.getElementById('askForm').style='display:inline;';"
 				+ "}"
+				+ "function waitForScore() {\n"
+				+ " let b = document.getElementById('ask');\n"
+				+ " b.disabled = true;\n"
+				+ " b.value = 'Please wait a moment for Sage to answer.';\n"
+				+ "}\n"
 				+ "</script>"); 
 				
 		return buf.toString();
@@ -175,7 +181,9 @@ public class Sage extends HttpServlet {
 			String content = api_response.get("choices").getAsJsonArray().get(0).getAsJsonObject().get("message").getAsJsonObject().get("content").getAsString();
 			
 			buf.append("<h1>Sage Response</h1>");
-			buf.append(content + "<p>");
+			buf.append("<div style='width:800px;' >");
+			buf.append("<img src=/images/sage.png alt='Confucius Parrot' style='margin-left:20px;float:right;' />" + content);	
+			buf.append("</div>");
 			buf.append("<p><a class=btn role=button href='/sage'>Continue</a><p>");
 			
 		} catch (Exception e) {
@@ -406,7 +414,7 @@ public class Sage extends HttpServlet {
 				int nChapterScores = ofy().load().type(Score.class).parent(s.owner).ids(chapterConceptIds).size();
 				buf.append("You have completed " + nChapterScores + " out of " + chapterConceptIds.size() + " concepts for this chapter.<p>");
 			}
-			buf.append(askAQuestion(topic));
+			buf.append(askAQuestion(topic,Nonce.getHexString()));
 			// Retrieve the next concept in the list and update the user
 			int conceptIndex = conceptList.indexOf(conceptMap.get(user.conceptId));
 			while (ofy().load().type(Score.class).parent(s.owner).id(conceptList.get(conceptIndex+1).id).now()!=null) conceptIndex++;
@@ -416,7 +424,7 @@ public class Sage extends HttpServlet {
 		} else if (level_up) {
 			buf.append("<h3>You have moved up to Level " + (s.score/20 + 1) +".</h3>"
 					+ "<b>Your current score on this concept is " + s.score + "%.</b>&nbsp;");
-			if (s.score >= 60 && s.score < 80) buf.append("<p>" + askAQuestion(topic) + "Otherwise...");
+			if (s.score >= 60 && s.score < 80) buf.append("<p>" + askAQuestion(topic,Nonce.getHexString()) + "Otherwise...");
 		} else {
 			buf.append("<p><b>Your current score on this concept is " + s.score + "%.</b>&nbsp;");
 		}
