@@ -89,8 +89,11 @@ public class Sage extends HttpServlet {
 				return;
 			} catch (Exception e) {
 				out.println(Util.head
-						+ "<h1>Sorry, Sage is temporarily unavailable to answer your question.</h1>"
-						+ "Please try again later.&nbsp;<a class=btn role=button href='/sage'>Continue</a>"
+						+ "<h1>Sorry, Sage only answers one question at a time.</h1>"
+						+ "Your session will continue in a moment."
+						+ "<script>"
+						+ " setTimeout(() => { window.location.replace('/sage'); }, 2000);"  // pause, then continue
+						+ "</script>"
 						+ Util.foot);
 			}
 			break;
@@ -184,7 +187,19 @@ public class Sage extends HttpServlet {
 			buf.append("<div style='width:800px;' >");
 			buf.append("<img src=/images/sage.png alt='Confucius Parrot' style='margin-left:20px;float:right;' />" + content);	
 			buf.append("</div>");
-			buf.append("<p><a class=btn role=button href='/sage'>Continue</a><p>");
+			buf.append("<div id=helpful>"
+					+ "<span><b>Was this answer helpful?</b></span> " 
+					+ "<a href=#  style='vertical-align:middle' onclick=wasHelpful(true);><img src=/images/thumbs_up.png alt='thumbs up' style='height:30px' /></a>&nbsp;"
+					+ "<a href=#  style='vertical-align:middle' onclick=wasHelpful(false);><img src=/images/thumbs_down.png alt='thumbs down' style='height:30px' /></a>"
+					+ "</div><p>");
+			// include some javascript to process the response
+			buf.append("<script>"
+					+ "function wasHelpful(response) {"
+					+ " document.getElementById('helpful').innerHTML='Thank you for the feedback.';"
+					+ " setTimeout(() => { window.location.replace('/sage'); }, 1000);"  // pause, then continue
+					+ "}"
+					+ "</script>");
+			//buf.append("<p><a class=btn role=button href='/sage'>Continue</a><p>");
 			
 		} catch (Exception e) {
 			buf.append("<p>Error: " + (e.getMessage()==null?e.toString():e.getMessage()) + "<p>");
@@ -346,24 +361,37 @@ public class Sage extends HttpServlet {
 				buf.append("<div>"
 						+ getHelp(q)
 						+ "</div>"
-						+ "<img src=/images/sage.png alt='Confucius Parrot' style='float:right'>");
+						+ "<img src=/images/sage.png alt='Confucius Parrot' style='float:right'>"
+						+ "</div>");
+				
+				buf.append("<div id=helpful>"
+						+ "<span><b>Is this helpful?</b></span> " 
+						+ "<a href=#  style='vertical-align:middle' onclick=wasHelpful(true);><img src=/images/thumbs_up.png alt='thumbs up' style='height:30px' /></a>&nbsp;"
+						+ "<a href=#  style='vertical-align:middle' onclick=wasHelpful(false);><img src=/images/thumbs_down.png alt='thumbs down' style='height:30px' /></a>"
+						+ "</div><p>");
+				// include some javascript to process the response
+				buf.append("<script>"
+						+ "function wasHelpful(response) {"
+						+ " document.getElementById('helpful').innerHTML='<br/>Thank you for the feedback. ' "
+						+ "  + (response?'I&apos;m always happy to help.':'I&apos;ll try to do better next time.');"
+						+ "}"
+						+ "</script>");
 			} else {
 				buf.append("<div>"
 						+ "Please submit your answer to the question below.<p>"
 						+ "If you get stuck, I am here to help you, but your score will be higher if you do it by yourself.<p>"
-						+ "<a id=help class=btn role=button href=/sage?Help=true&p=" + p + " onclick=waitForHelp()>Please help me with this question</a>"
+						+ "<a id=help class=btn role=button href=/sage?Help=true&p=" + p + " onclick=waitForHelp(); >Please help me with this question</a>"
 						+ "</div>"
-						+ "<img src=/images/sage.png alt='Confucius Parrot' style='float:right'>");
-			}
-			buf.append("</div>");
-			
-			// include some javascript to change the submit button
-			buf.append("<script>"
-					+ "function waitForHelp() {\n"
-					+ " let a = document.getElementById('help');\n"
-					+ " a.innerHTML = 'Please wait a moment for Sage to answer.';\n"
-					+ "}\n"
-					+ "</script>");
+						+ "<img src=/images/sage.png alt='Confucius Parrot' style='float:right'>"
+						+ "</div>");
+				// include some javascript to change the submit button
+				buf.append("<script>"
+						+ "function waitForHelp() {\n"
+						+ " let a = document.getElementById('help');\n"
+						+ " a.innerHTML = 'Please wait a moment for Sage to answer.';\n"
+						+ "}\n"
+						+ "</script>");
+				}
 			
 			buf.append("<hr style='width:800px;margin-left:0'>");  // break between Sage helper panel and question panel
 	
