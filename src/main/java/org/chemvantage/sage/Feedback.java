@@ -54,6 +54,8 @@ public class Feedback extends HttpServlet {
 		case "HelpfulHint":
 			reportHelpfulHint(request);
 			break;
+		case "HelpfulAnswer":
+			reportHelpfulAnswer(request);
 		case "AjaxRating":
 			//recordAjaxRating(request);
 			break;
@@ -105,6 +107,13 @@ public class Feedback extends HttpServlet {
 		}
 	}
 	
+	static void reportHelpfulAnswer(HttpServletRequest request) {
+		try {
+			boolean response = Boolean.parseBoolean(request.getParameter("Response"));
+			Util.sageAnswerWasHelpful(response);
+		} catch (Exception e) {}
+	}
+
 	static void reportHelpfulHint(HttpServletRequest request) {
 		try {
 			long questionId = Long.parseLong(request.getParameter("QuestionId"));

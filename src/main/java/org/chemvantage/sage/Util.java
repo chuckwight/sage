@@ -20,13 +20,15 @@ public class Util {
 	private String HMAC256Secret = "ChangeMe";
 	private String reCaptchaSecret = "ChangeMe";
 	private String reCaptchaSiteKey = "ChangeMe";
+	private int nSageAnswerWasHelpful = 0;
+	private int nSageAnswerNotHelpful = 0;
 	private String openai_key = "ChangeMe";
 	private String salt = "ChangeMe";
 	private String announcement = "";
-	private String sendGridAPIKey = "ChangeMe";
 	private String payPalSandboxClientId = "ChangeMe";
 	private String payPalDefaultClientId = "ChangeMe";
 	
+	private String sendGridAPIKey = "ChangeMe";
 	private static Util u;
 	
 	@Ignore static String projectId = ServiceOptions.getDefaultProjectId();
@@ -79,6 +81,20 @@ public class Util {
 				ofy().save().entity(u).now();
 			}
 		}
+	}
+	
+	static void sageAnswerWasHelpful(boolean response) {
+		if (response) u.nSageAnswerWasHelpful++;
+		else u.nSageAnswerNotHelpful++;
+		ofy().save().entity(u);
+	}
+	
+	static int getSageAnswerWasHelpful() {
+		return u.nSageAnswerWasHelpful;
+	}
+	
+	static int getSageAnswerNotHelpful() {
+		return u.nSageAnswerNotHelpful;
 	}
 	
 	public static void sendEmail(String recipientName, String recipientEmail, String subject, String message) 

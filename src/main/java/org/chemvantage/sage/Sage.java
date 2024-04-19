@@ -195,8 +195,13 @@ public class Sage extends HttpServlet {
 			// include some javascript to process the response
 			buf.append("<script>"
 					+ "function wasHelpful(response) {"
-					+ " document.getElementById('helpful').innerHTML='Thank you for the feedback.';"
+					+ " document.getElementById('helpful').innerHTML='<br/><b>Thank you for the feedback.</b>';"
 					+ " setTimeout(() => { window.location.replace('/sage'); }, 1000);"  // pause, then continue
+					+ " try {"
+					+ "  var xmlhttp = new XMLHttpRequest();"
+					+ "  xmlhttp.open('GET','/feedback?UserRequest=HelpfulAnswer&Response=' + response,true);"
+					+ "  xmlhttp.send(null);"
+					+ " } catch (error) {}"
 					+ "}"
 					+ "</script>");
 			//buf.append("<p><a class=btn role=button href='/sage'>Continue</a><p>");
@@ -366,18 +371,17 @@ public class Sage extends HttpServlet {
 				
 				buf.append("<div id=helpful>"
 						+ "<span><b>Is this helpful?</b></span> " 
-						+ "<a href=#  style='vertical-align:middle' onclick=wasHelpful(" + q.id + ",true);><img src=/images/thumbs_up.png alt='thumbs up' style='height:30px' /></a>&nbsp;"
-						+ "<a href=#  style='vertical-align:middle' onclick=wasHelpful(" + q.id + ",false);><img src=/images/thumbs_down.png alt='thumbs down' style='height:30px' /></a>"
+						+ "<a href=#  style='vertical-align:middle' onclick=wasHelpful(true);><img src=/images/thumbs_up.png alt='thumbs up' style='height:30px' /></a>&nbsp;"
+						+ "<a href=#  style='vertical-align:middle' onclick=wasHelpful(false);><img src=/images/thumbs_down.png alt='thumbs down' style='height:30px' /></a>"
 						+ "</div><p>");
 				// include some javascript to process the response
 				buf.append("<script>"
-						+ "function wasHelpful(questionId,response) {"
+						+ "function wasHelpful(response) {"
 						+ " document.getElementById('helpful').innerHTML='<br/>Thank you for the feedback. ' "
 						+ "  + (response?'I&apos;m always happy to help.':'I&apos;ll try to do better next time.');"
 						+ " try {"
 						+ "  var xmlhttp = new XMLHttpRequest();"
-						+ "  var url = '/feedback?UserRequest=Helpful&QuestionId=' + questionId + '&response=' + response;"
-						+ "  xmlhttp.open('GET',url,true);"
+						+ "  xmlhttp.open('GET','/feedback?UserRequest=HelpfulHint&QuestionId=" + q.id + "&Response=' + response,true);"
 						+ "  xmlhttp.send(null);"
 						+ " } catch (error) { console.error(error); }"
 						+ "}"
