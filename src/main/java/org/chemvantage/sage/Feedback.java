@@ -29,7 +29,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
 
-@WebServlet("/Feedback")
+@WebServlet("/feedback")
 public class Feedback extends HttpServlet {
 
 	private static final long serialVersionUID = 137L;
@@ -50,6 +50,9 @@ public class Feedback extends HttpServlet {
 		switch (userRequest) {  // only AJAX submissions
 		case "ReportAProblem":
 			reportAProblem(hashedId, request);
+			break;
+		case "HelpfulHint":
+			reportHelpfulHint(request);
 			break;
 		case "AjaxRating":
 			//recordAjaxRating(request);
@@ -100,6 +103,16 @@ public class Feedback extends HttpServlet {
 		} catch (Exception e) {
 
 		}
+	}
+	
+	static void reportHelpfulHint(HttpServletRequest request) {
+		try {
+			long questionId = Long.parseLong(request.getParameter("QuestionId"));
+			boolean response = Boolean.parseBoolean(request.getParameter("Response"));
+			Question q = ofy().load().type(Question.class).id(questionId).safe();
+			q.hintWasHelpful(response);
+			ofy().save().entity(q);
+		} catch (Exception e) {}
 	}
 
 	static void sendEmailToAdmin(UserReport r, String email) throws Exception {

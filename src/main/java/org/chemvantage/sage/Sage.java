@@ -366,14 +366,20 @@ public class Sage extends HttpServlet {
 				
 				buf.append("<div id=helpful>"
 						+ "<span><b>Is this helpful?</b></span> " 
-						+ "<a href=#  style='vertical-align:middle' onclick=wasHelpful(true);><img src=/images/thumbs_up.png alt='thumbs up' style='height:30px' /></a>&nbsp;"
-						+ "<a href=#  style='vertical-align:middle' onclick=wasHelpful(false);><img src=/images/thumbs_down.png alt='thumbs down' style='height:30px' /></a>"
+						+ "<a href=#  style='vertical-align:middle' onclick=wasHelpful(" + q.id + ",true);><img src=/images/thumbs_up.png alt='thumbs up' style='height:30px' /></a>&nbsp;"
+						+ "<a href=#  style='vertical-align:middle' onclick=wasHelpful(" + q.id + ",false);><img src=/images/thumbs_down.png alt='thumbs down' style='height:30px' /></a>"
 						+ "</div><p>");
 				// include some javascript to process the response
 				buf.append("<script>"
-						+ "function wasHelpful(response) {"
+						+ "function wasHelpful(questionId,response) {"
 						+ " document.getElementById('helpful').innerHTML='<br/>Thank you for the feedback. ' "
 						+ "  + (response?'I&apos;m always happy to help.':'I&apos;ll try to do better next time.');"
+						+ " try {"
+						+ "  var xmlhttp = new XMLHttpRequest();"
+						+ "  var url = '/feedback?UserRequest=Helpful&QuestionId=' + questionId + '&response=' + response;"
+						+ "  xmlhttp.open('GET',url,true);"
+						+ "  xmlhttp.send(null);"
+						+ " } catch (error) { console.error(error); }"
 						+ "}"
 						+ "</script>");
 			} else {

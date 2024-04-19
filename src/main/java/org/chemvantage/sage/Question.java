@@ -58,6 +58,8 @@ public class Question implements Serializable, Cloneable {
 			String sageAdvice;
 			boolean scrambleChoices;
 			boolean strictSpelling;
+	private Integer nHintWasHelpful = 0;
+	private Integer nHintNotHelpful = 0;
 	private Integer nCorrectAnswers = null;
 	private Integer nTotalAttempts = null;
 			// Note: the parameters array formerly had the attribute @Transient javax.persistence.Transient
@@ -655,7 +657,7 @@ public class Question implements Serializable, Cloneable {
 			buf.append("Your Comment: <INPUT TYPE=TEXT SIZE=80 NAME=Notes /><br/>");
 			buf.append("Your Email: <INPUT TYPE=TEXT SIZE=50 PLACEHOLDER=' optional, if you want a response' NAME=Email /><br/>");
 			buf.append("<INPUT TYPE=BUTTON VALUE='Submit Feedback' "
-					+ "onClick=\" return ajaxSubmit('/Feedback?UserRequest=ReportAProblem','" + this.id + "','" + URLEncoder.encode(Arrays.toString(this.parameters),"UTF-8") + "','" + studentAnswer + "',encodeURIComponent(document.getElementById('suggest" + this.id + "').Notes.value),encodeURIComponent(document.getElementById('suggest" + this.id + "').Email.value)); return false;\" />"
+					+ "onClick=\" return ajaxSubmit('/feedback?UserRequest=ReportAProblem','" + this.id + "','" + URLEncoder.encode(Arrays.toString(this.parameters),"UTF-8") + "','" + studentAnswer + "',encodeURIComponent(document.getElementById('suggest" + this.id + "').Notes.value),encodeURIComponent(document.getElementById('suggest" + this.id + "').Email.value)); return false;\" />"
 					+ "</div></FORM><br/>");
 			buf.append("</div>");
 		}
@@ -863,6 +865,11 @@ public class Question implements Serializable, Cloneable {
 	
 	boolean hasACorrectAnswer() {
 		return !hasNoCorrectAnswer();
+	}
+	
+	void hintWasHelpful(boolean response) {
+		if (response) nHintWasHelpful++;
+		else nHintNotHelpful++;
 	}
 	
 	boolean isCorrect(String studentAnswer){
