@@ -447,7 +447,8 @@ public class Sage extends HttpServlet {
 				Chapter nextChapter = ofy().load().type(Chapter.class).filter("chapterNumber",ch.chapterNumber+1).first().now();
 				if (nextChapter == null) buf.append("<h1>Congratulations, you finished!</h1>");
 				else {
-					buf.append("The next chapter is: <b>" + nextChapter.title + "</b>.<br/>");
+					buf.append(askAQuestion(topic,Nonce.getHexString()));
+					buf.append("<br/>The next chapter is: <b>" + nextChapter.title + "</b>.<br/>");
 				}
 			} else {  // concept was completed
 				buf.append("You have mastered the concept: <b>" + topic +"</b></br/>");
@@ -458,8 +459,8 @@ public class Sage extends HttpServlet {
 						chapterConceptIds.add(c.id);
 				int nChapterScores = ofy().load().type(Score.class).parent(s.owner).ids(chapterConceptIds).size();
 				buf.append("You have completed " + nChapterScores + " out of " + chapterConceptIds.size() + " concepts for this chapter.<p>");
+				buf.append(askAQuestion(topic,Nonce.getHexString()));
 			}
-			buf.append(askAQuestion(topic,Nonce.getHexString()));
 			// Retrieve the next concept in the list and update the user
 			int conceptIndex = conceptList.indexOf(conceptMap.get(user.conceptId));
 			while (ofy().load().type(Score.class).parent(s.owner).id(conceptList.get(conceptIndex+1).id).now()!=null) conceptIndex++;
