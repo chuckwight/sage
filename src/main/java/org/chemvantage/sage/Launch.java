@@ -306,7 +306,7 @@ public class Launch extends HttpServlet {
 				+ "ready to provide help whenever you need it. This tutorial is organized around "
 				+ "100 key concepts that are normally taught in a college-level General Chemistry course.<p>"
 				+ "Accept the terms below to begin your free trial. After 7 days, you can extend your "
-				+ "subscrtiption for only $5 USD per month.<p>"
+				+ "subscription for only $5 USD per month.<p>"
 				+ "</div>"
 				+ "<form method=post>"
 				+ "<input type=hidden name=HashedId value=" + hashedId + " />"
