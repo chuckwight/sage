@@ -32,12 +32,13 @@ public class Launch extends HttpServlet {
 			throws ServletException, IOException {
 		
 		//  This method permits login using a valid tokenized link.
+		String token = request.getParameter("Token");
+		if (token==null) response.sendRedirect("/");
 		
 		PrintWriter out = response.getWriter();
 		response.setContentType("text/html");
 		
 		try {  // token login
-			String token = request.getParameter("Token");
 			String hashedId = validateToken(token);
 			User user = ofy().load().type(User.class).id(hashedId).now();
 			
