@@ -324,6 +324,7 @@ public class Sage extends HttpServlet {
 	static Score getScore(User user) {
 		Key<User> k = key(user);
 		try {
+			if (user.conceptId==null) user.conceptId = ofy().load().type(Concept.class).order("orderBy").first().now().id;
 			return ofy().load().type(Score.class).parent(k).id(user.conceptId).safe();
 		} catch (Exception e) {
 			Score s = new Score(user.hashedId,user.conceptId);
