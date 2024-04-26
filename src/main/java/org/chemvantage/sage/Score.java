@@ -29,8 +29,9 @@ import com.googlecode.objectify.annotation.Parent;
 @Entity
 public class Score {    // this object represents a best score achieved by a user on a quiz or homework
 	@Parent Key<User> owner;
-	@Id	Long conceptId;      // from the datastore.
+	@Id	Long id;
 	@Index	int score = 0;
+	@Index Long conceptId;
 	Long questionId = null;
 	boolean gotHelp = false;
 	
@@ -38,6 +39,7 @@ public class Score {    // this object represents a best score achieved by a use
 	
 	Score(String hashedId, Long conceptId) {
 		this.owner = key(User.class,hashedId);
+		this.id = conceptId;
 		this.conceptId = conceptId;
 	}
 	
@@ -73,6 +75,7 @@ public class Score {    // this object represents a best score achieved by a use
 		score = proposedScore;
 		questionId = proposedScore==100?null:Sage.getNewQuestionId(this);
 		gotHelp =  false;
+		if (conceptId==null) conceptId = id;
 		
 		return newQuintileRank > oldQuintileRank;
 	}

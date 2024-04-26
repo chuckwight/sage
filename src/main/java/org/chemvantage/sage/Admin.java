@@ -4,6 +4,7 @@ import static com.googlecode.objectify.ObjectifyService.ofy;
 
 import java.io.IOException;
 import java.io.PrintWriter;
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 
@@ -25,7 +26,8 @@ public class Admin extends HttpServlet {
 		response.setContentType("text/html");
 		
 		try {
-			out.println(adminPage());
+			boolean showGraph = Boolean.parseBoolean(request.getParameter("ShowGraph"));
+			out.println(adminPage(showGraph));
 		} catch (Exception e) {}
 	}
 	
@@ -42,14 +44,40 @@ public class Admin extends HttpServlet {
 		}
 		doGet(request,response);
 	}
-	static String adminPage() throws Exception {
+	static String adminPage(boolean showGraph) throws Exception {
 		StringBuffer buf = new StringBuffer(Util.head);
-		buf.append("<h1>Admin Page</h1>"
-				+ "<h2>Users</h2>"
-				+ "Total: " + ofy().load().type(User.class).count() + " users<br/>"
-				+ "Expired: " + ofy().load().type(User.class).filter("expired <",new Date()).count() + "<p>"
-				+ "<h2>User Feedback</h2>"
-				+ viewUserFeedback());
+		
+		buf.append("<h1>Admin Page</h1>");
+		
+		buf.append("<h2>Users</h2>"
+				+ ofy().load().type(User.class).count() + " users (" + ofy().load().type(User.class).filter("expired",new Date()).count() + " expired)<br/>"
+				+ ofy().load().type(Score.class).count() + " scores<br/>");
+		
+		if (showGraph) {
+			// Make a graph of number of scores for each Concept
+			List<Concept> concepts = ofy().load().type(Concept.class).order("orderBy").list();
+			List<Integer> nScores = new ArrayList<Integer>();
+			int maxCount = 0;
+			for (Concept c : concepts) {
+				int count = ofy().load().type(Score.class).filter("conceptId",c.id).count();
+				if (count==0) break;
+				nScores.add(concepts.indexOf(c),count);
+				if (count > maxCount) maxCount = count;
+			}
+			int cellWidth = 600/nScores.size();
+			if (cellWidth>10) cellWidth=10;
+
+			buf.append("<table><tr>");
+			for (int count : nScores) {
+				buf.append("<td style='vertical-align:bottom;'><div style='background-color:blue;width:" + cellWidth + "px;height:" + 200*count/maxCount + "px;'></div></td>");
+			}
+			buf.append("</tr></table>");
+		} else {
+			buf.append("<a href=/admin?ShowGraph=true>show graph</a>");
+		}
+		
+		buf.append("<h2>User Feedback</h2>" + viewUserFeedback());
+		
 		return buf.toString() + Util.foot;
 	}
 	
