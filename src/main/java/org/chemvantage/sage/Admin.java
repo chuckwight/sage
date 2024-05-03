@@ -8,6 +8,9 @@ import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 
+import com.googlecode.objectify.annotation.Entity;
+import com.googlecode.objectify.annotation.Id;
+
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServlet;
@@ -18,6 +21,12 @@ import jakarta.servlet.http.HttpServletResponse;
 public class Admin extends HttpServlet {
 
 	private static final long serialVersionUID = 1L;
+	private static int[] invalidEmail = {0,0,0,0,0,0,0,0,0,0};
+	private static int[] returningCookie = {0,0,0,0,0,0,0,0,0,0};
+	private static int[] expiredToken = {0,0,0,0,0,0,0,0,0,0};
+	private static int[] returningUser = {0,0,0,0,0,0,0,0,0,0};
+	private static int[] freeSubscription = {0,0,0,0,0,0,0,0,0,0};
+	private static int[] paidSubscription = {0,0,0,0,0,0,0,0,0,0};
 
 	public void doGet(HttpServletRequest request, HttpServletResponse response)
 			throws ServletException, IOException {
@@ -76,9 +85,56 @@ public class Admin extends HttpServlet {
 			buf.append("<a href=/admin?ShowGraph=true>show graph</a>");
 		}
 		
+		buf.append("<h2>Launch Statistics</h2>");
+		
+		
 		buf.append("<h2>User Feedback</h2>" + viewUserFeedback());
 		
 		return buf.toString() + Util.foot;
+	}
+	
+	static void scoreLaunch(String hashedId, String launchPoint, int captchaScore) {
+		switch (launchPoint) {
+		case "Token Sent":
+			LaunchStep step = new LaunchStep(hashedId,launchPoint,captchaScore);
+			ofy().save().entity(step).now();
+			break;
+		case "Invalid Email":
+			invalidEmail[captchaScore]++;
+			break;
+		case "Returning Cookie":
+			returningCookie[captchaScore]++;
+			break;
+		}
+	}
+	
+	static void updateLaunch(String hashedId, String launchPoint) {
+		try {
+			LaunchStep step = ofy().load().type(LaunchStep.class).id(hashedId).now();
+			switch (launchPoint) {
+			case "New Subscription":
+				if (step != null) {
+					step.launchPoint = "New Subscription";
+					ofy().save().entity(step).now();
+				}
+				break;
+			case "Expired Token":
+				expiredToken[step.captchaScore]++;
+				ofy().delete().entity(step);
+				break;
+			case "Returning User":
+				returningUser[step.captchaScore]++;
+				ofy().delete().entity(step);
+				break;
+			case "Free Subscription":
+				freeSubscription[step.captchaScore]++;
+				ofy().delete().entity(step);
+				break;
+			case "Paid Subscription":
+				paidSubscription[step.captchaScore]++;
+				ofy().delete().entity(step);
+			}
+		} catch (Exception e) {}
 	}
 	
 	static String viewUserFeedback() throws Exception {
@@ -104,3 +160,20 @@ public class Admin extends HttpServlet {
 		} catch (Exception e) {}
 	}
 }
+	@Entity
+	class LaunchStep {
+		@Id String hashedId;
+		String launchPoint;
+		Date timestamp;
+		int captchaScore;
+		
+		LaunchStep() {}
+		
+		LaunchStep(String hashedId, String launchPoint, int captchaScore) {
+			this.hashedId = hashedId;
+			this.launchPoint = launchPoint;
+			this.captchaScore = captchaScore;
+			this.timestamp = new Date();
+		}
+	}
+
