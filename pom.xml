@@ -83,6 +83,19 @@
       <artifactId>sendgrid-java</artifactId>
     </dependency>
 
+	<!-- Apache Commons Validator (for email addresses) -->
+	<dependency>
+      <groupId>commons-validator</groupId>
+      <artifactId>commons-validator</artifactId>
+      <version>1.8.0</version>
+	</dependency>
+	
+	<!-- Google Cloud reCaptcha Enterprise -->
+	<dependency>
+      <groupId>com.google.cloud</groupId>
+      <artifactId>google-cloud-recaptchaenterprise</artifactId>
+	</dependency>
+	
   </dependencies>
     
   <build>

@@ -9,12 +9,19 @@ import java.security.MessageDigest;
 import java.util.Calendar;
 import java.util.Date;
 import java.util.List;
-import java.util.regex.Pattern;
+
+import org.apache.commons.validator.routines.EmailValidator;
 
 import com.auth0.jwt.JWT;
 import com.auth0.jwt.algorithms.Algorithm;
 import com.auth0.jwt.interfaces.DecodedJWT;
 import com.auth0.jwt.interfaces.JWTVerifier;
+import com.google.cloud.recaptchaenterprise.v1.RecaptchaEnterpriseServiceClient;
+import com.google.recaptchaenterprise.v1.Assessment;
+import com.google.recaptchaenterprise.v1.CreateAssessmentRequest;
+import com.google.recaptchaenterprise.v1.Event;
+import com.google.recaptchaenterprise.v1.ProjectName;
+//import com.google.recaptchaenterprise.v1.RiskAnalysis.ClassificationReason;
 
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
@@ -28,6 +35,22 @@ public class Launch extends HttpServlet {
 
 	private static final long serialVersionUID = 1L;
 	
+	/* The 2D array launchCounters stores launch statistics.
+	 * There are 3 possible initial outcomes for any launch:
+	 * 0: invalidEmail - address submitted failed validation test
+	 * 1: returningCookie - user already has an active cookie
+	 * 2: tokenSent - a token was sent but never resubmitted
+	 *
+	 * Each array has 11 elements, corresponding to Captcha scores 0-10
+	 * that hold the current count of completed launches with these scores.
+	 * Scores are integer values translated 10X from Google reCaptcha scores 0.0 - 1.0
+	 */
+	private static int[][] launchCounters = new int[3][11];
+	private static final int INVALID_EMAIL = 0;
+	private static final int RETURNING_COOKIE = 1;
+	private static final int TOKEN_SENT = 2;
+	
+
 	public void doGet(HttpServletRequest request,HttpServletResponse response)
 			throws ServletException, IOException {
 		
@@ -56,7 +79,6 @@ public class Launch extends HttpServlet {
 				cookie.setMaxAge(60 * 60); // 1 hour
 				response.addCookie(cookie);
 				
-				//request.getSession().setAttribute("hashedId", hashedId);
 				response.sendRedirect("/sage");
 			}
 		} catch (Exception e) {
@@ -77,7 +99,7 @@ public class Launch extends HttpServlet {
 		User user = null;
 		
 		switch (userRequest) {
-		case "Start":  //  new user agrees to terms - from welcomePage()
+		case "Start":  //  new user agreed to terms - from welcomePage()
 			hashedId = request.getParameter("HashedId");
 			user = new User(hashedId);
 			try {
@@ -93,31 +115,40 @@ public class Launch extends HttpServlet {
 			cookie.setMaxAge(60 * 60); // 1 hour
 			response.addCookie(cookie);
 			
-			//request.getSession().setAttribute("hashedId", hashedId);
 			response.sendRedirect("/sage");
 			return;
 		case "Complete Purchase":  // after PayPal payment - from checkout()
 			try {
-				if (purchaseComplete(request)) out.println(thankYouPage(request));
-				else throw new Exception("Unknown error");
+				if (purchaseComplete(request)) {
+					out.println(thankYouPage(request));
+				} else throw new Exception("Unknown error");
 			} catch (Exception e) {
 				out.println(e.getMessage()==null?e.toString():e.getMessage());
 			}
 			return;
 		default:
 			try {  // login attempt from index.html
-				String email = request.getParameter("Email");
-				String regexPattern = "^(.+)@(\\S+)$";
-				if (!Pattern.compile(regexPattern).matcher(email).matches()) throw new Exception("Not a valid email address");
+				String gRecaptchaToken = request.getParameter("g-recaptcha-response");
+				if (gRecaptchaToken == null) throw new Exception("Recaptcha token was missing");
+				
+				int captchaScore = Math.round(createAssessment(gRecaptchaToken,"request_login_token"));
+				
+				String email = request.getParameter("Email").trim().toLowerCase();
+				if (!EmailValidator.getInstance().isValid(email)) {
+					launchCounters[INVALID_EMAIL][captchaScore]++;
+					throw new Exception("Not a valid email address");
+				}
 
 				hashedId = getHash(email);
 				user = ofy().load().type(User.class).id(hashedId).now();
 				Date now  = new Date();
 
 				if (user != null && user.expires.after(now) && user.hashedId.equals(Sage.getFromCookie(request, response))) {  // returning user with active Cookie
+					launchCounters[RETURNING_COOKIE][captchaScore]++;
 					out.println(Sage.start(user));
 				} else { // no valid Cookie; send login link
 					Util.sendEmail(null,email,"Sage Login Link", tokenMessage(createToken(hashedId),request.getRequestURL().toString()));
+					launchCounters[TOKEN_SENT][captchaScore]++;
 					out.println(emailSent());
 					return;
 				}
@@ -177,6 +208,40 @@ public class Launch extends HttpServlet {
 		return buf.toString() + Util.foot;
 	}
 
+	static int createAssessment(String token, String recaptchaAction) throws Exception {
+		// create an Assessment of the Google reCaptcha token 
+		// (see https://cloud.google.com/recaptcha-enterprise/docs/create-assessment-website#create-assessment-Java)
+		
+		RecaptchaEnterpriseServiceClient client = RecaptchaEnterpriseServiceClient.create();
+		Event event = Event.newBuilder().setSiteKey(Util.getReCaptchaSiteKeyt()).setToken(token).build();
+		CreateAssessmentRequest createAssessmentRequest =
+			CreateAssessmentRequest.newBuilder()
+				.setParent(ProjectName.of(Util.projectId).toString())
+				.setAssessment(Assessment.newBuilder().setEvent(event).build())
+				.build();
+		Assessment response = client.createAssessment(createAssessmentRequest);
+		if (!response.getTokenProperties().getValid()) {
+	        throw new Exception("The CreateAssessment call failed because the token was: "
+	                + response.getTokenProperties().getInvalidReason().name());
+		}
+		if (!response.getTokenProperties().getAction().equals(recaptchaAction)) {
+			throw new Exception("The action attribute in the reCaptcha response token "
+					+ "does not match the expected action ('request_login_token')");
+		}
+	    
+		// This section is reserved for future use if the reasons are desired
+		/*
+		StringBuffer reasons = new StringBuffer();
+		for (ClassificationReason reason : response.getRiskAnalysis().getReasonsList()) {
+	        reasons.append(reason + "<br/>");
+		}
+		*/
+		
+		// Google reCaptcha scores are floats ranging from 0.0 to 1.0
+		// These are multiplied 10X and rounded to integer values from 0 to 10
+		return Math.round(10*response.getRiskAnalysis().getScore());
+	}
+	
 	static String createToken(String hashedId) throws Exception {
 		Date now = new Date();
 		Date exp = new Date(now.getTime() + 360000L);  // 5 minutes from now
