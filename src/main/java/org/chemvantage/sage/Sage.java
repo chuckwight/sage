@@ -230,14 +230,15 @@ public class Sage extends HttpServlet {
 		return true;
 	}
 	
-	static String getFromCookie(HttpServletRequest request, HttpServletResponse response) throws IOException {
+	static String getFromCookie(HttpServletRequest request, HttpServletResponse response) {
 		try {
 			Cookie[] cookies = request.getCookies();
 			for (Cookie cookie : cookies) {
 				if (cookie.getName().equals("hashedId")) {
+					User u = ofy().load().type(User.class).id(cookie.getValue()).safe();  // throws Exception if user does not exist
 					cookie.setMaxAge(3600);
 					response.addCookie(cookie);
-					return cookie.getValue();
+					return u.hashedId;
 				}
 			}
 			return null;
