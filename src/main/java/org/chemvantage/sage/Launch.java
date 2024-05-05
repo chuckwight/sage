@@ -129,7 +129,11 @@ public class Launch extends HttpServlet {
 		default:
 			try {  // login attempt from index.html
 				String gRecaptchaToken = request.getParameter("g-recaptcha-response");
-				if (gRecaptchaToken == null) throw new Exception("Recaptcha token was missing");
+				if (gRecaptchaToken == null) {
+					throw new Exception("The reCaptcha token was missing. Your browser may have cached "
+							+ "an older version of the <a href=/ >home page</a>. Please clear the "
+							+ "browser's cached pages and try again.");
+				}
 				
 				int captchaScore = Math.round(createAssessment(gRecaptchaToken,"request_login_token"));
 				
@@ -153,7 +157,7 @@ public class Launch extends HttpServlet {
 					return;
 				}
 			} catch (Exception e) {
-				response.sendRedirect("/");
+				out.println(e.getMessage()==null?e.toString():e.getMessage());
 			}
 		}
 	}
@@ -275,19 +279,7 @@ public class Launch extends HttpServlet {
 		StringBuffer buf = new StringBuffer(Util.head);
 		buf.append("<h1>Sorry! An unexpected error occurred.</h1>"
 				+ (e.getMessage()==null?e.toString():e.getMessage()) + "<p>"
-				+ "<form method=post action='/launch' onsubmit=waitForLink(); >"
-				+ "<label>"
-				+ "To start over, please enter your email address:"
-				+ "<input type=text name=Email size=30 /></label>"
-				+ "<input id=sendLink type=submit class=btn /><p>"
-				+ "</form><p>"
-				+ "<script>"
-				+ "	function waitForLink() {"
-				+ "	  let button = document.getElementById('sendLink');"
-				+ "	  button.style = 'opacity:0.3';"
-				+ "	  button.disabled = true;"
-				+ "	}"
-				+ "	</script>");
+				+ "<a href=/ >Return to the login page</a>");
 		return buf.toString() + Util.foot;
 	}
 
@@ -299,7 +291,20 @@ public class Launch extends HttpServlet {
 			sb.append(String.format("%02x", b));
 		}
 		return sb.toString();
-}
+	}
+	
+	static String getLaunchStats() {
+		StringBuffer buf = new StringBuffer();
+		buf.append("<table>");
+		// header row:
+		buf.append("<tr><th>Outcome|Score</th><th>0.0</th><th>0.1</th><th>0.2</th><th>0.3</th><th>0.4</th><th>0.5</th><th>0.6</th><th>0.7</th><th>0.8</th><th>0.9</th><th>1.0</th></tr>");
+		// data from counter arrays
+		buf.append("<tr><td>Invalid Email</td><td>" + launchCounters[0][0] + "</td><td>" + launchCounters[0][1] + "</td><td>" + launchCounters[0][2] + "</td><td>" + launchCounters[0][3] + "</td><td>" + launchCounters[0][4] + "</td><td>" + launchCounters[0][5] + "</td><td>" + launchCounters[0][6] + "</td><td>" + launchCounters[0][7] + "</td><td>" + launchCounters[0][8] + "</td><td>" + launchCounters[0][9] + "</td><td>" + launchCounters[0][10]+ "</td></tr>");
+		buf.append("<tr><td>Returning Cookie</td><td>" + launchCounters[1][0] + "</td><td>" + launchCounters[1][1] + "</td><td>" + launchCounters[1][2] + "</td><td>" + launchCounters[1][3] + "</td><td>" + launchCounters[1][4] + "</td><td>" + launchCounters[1][5] + "</td><td>" + launchCounters[1][6] + "</td><td>" + launchCounters[1][7] + "</td><td>" + launchCounters[1][8] + "</td><td>" + launchCounters[1][9] + "</td><td>" + launchCounters[1][10] + "</td></tr>");
+		buf.append("<tr><td>Token Sent</td><td>" + launchCounters[2][0] + "</td><td>" + launchCounters[2][1] + "</td><td>" + launchCounters[2][2] + "</td><td>" + launchCounters[2][3] + "</td><td>" + launchCounters[2][4] + "</td><td>" + launchCounters[2][5] + "</td><td>" + launchCounters[2][6] + "</td><td>" + launchCounters[2][7] + "</td><td>" + launchCounters[2][8] + "</td><td>" + launchCounters[2][9] + "</td><td>" + launchCounters[2][10] + "</td></tr>");
+		buf.append("</table>");
+		return buf.toString();
+	}
 
 	static boolean purchaseComplete(HttpServletRequest request) throws Exception {
 			int nmonths = Integer.parseInt(request.getParameter("NMonths"));

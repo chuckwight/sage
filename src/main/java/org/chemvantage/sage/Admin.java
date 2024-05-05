@@ -76,14 +76,18 @@ public class Admin extends HttpServlet {
 			buf.append("<a href=/admin?ShowGraph=true>show graph</a>");
 		}
 		
-		buf.append("<h2>Launch Statistics</h2>");
+		buf.append("<h2>Launch Statistics</h2>"
+				+ "The following table contains the number of launches having the indicated "
+				+ "reCaptcha scores (0.0 - 1.0) and outcomes. Note that 'Invalid Email' is "
+				+ "potentially serious because it circumvents email validation on index.html "
+				+ "and may indicate a direct attack.<p>" + Launch.getLaunchStats());
 		
 		
 		buf.append("<h2>User Feedback</h2>" + viewUserFeedback());
 		
 		return buf.toString() + Util.foot;
 	}
-			
+	
 	static String viewUserFeedback() throws Exception {
 		StringBuffer buf = new StringBuffer();
 		List<UserReport> reports = ofy().load().type(UserReport.class).order("-submitted").list();
