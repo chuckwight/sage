@@ -9,6 +9,7 @@ import java.security.MessageDigest;
 import java.util.Calendar;
 import java.util.Date;
 import java.util.List;
+import java.util.Random;
 
 import org.apache.commons.validator.routines.EmailValidator;
 
@@ -47,7 +48,7 @@ public class Launch extends HttpServlet {
 	 */
 	private static int[][] launchCounters = new int[3][11];
 	private static final int INVALID_EMAIL = 0;
-	private static final int RETURNING_COOKIE = 1;
+	private static final int COOKIE_LOGIN = 1;
 	private static final int TOKEN_SENT = 2;
 	
 
@@ -98,67 +99,75 @@ public class Launch extends HttpServlet {
 		String hashedId = null;
 		User user = null;
 		
-		switch (userRequest) {
-		case "Start":  //  new user agreed to terms - from welcomePage()
-			hashedId = request.getParameter("HashedId");
-			user = new User(hashedId);
-			try {
-				user.conceptId = Long.parseLong(request.getParameter("ConceptId"));
-			} catch (Exception e) {
-				user.conceptId = ofy().load().type(Concept.class).order("orderBy").keys().first().now().getId();
-			}
-			ofy().save().entity(user).now();
-			
-			Cookie cookie = new Cookie("hashedId", hashedId);
-			cookie.setSecure(true);
-			cookie.setHttpOnly(true);
-			cookie.setMaxAge(60 * 60); // 1 hour
-			response.addCookie(cookie);
-			
-			response.sendRedirect("/sage");
-			return;
-		case "Complete Purchase":  // after PayPal payment - from checkout()
-			try {
+		StringBuffer debug = new StringBuffer("Debug: ");
+		try {
+			switch (userRequest) {
+			case "Start":  //  new user agreed to terms - from welcomePage()
+				hashedId = validateToken(request.getParameter("token"));
+				user = new User(hashedId);
+				try {
+					user.conceptId = Long.parseLong(request.getParameter("ConceptId"));
+				} catch (Exception e) {
+					user.conceptId = ofy().load().type(Concept.class).order("orderBy").keys().first().now().getId();
+				}
+				ofy().save().entity(user).now();
+
+				Cookie cookie = new Cookie("hashedId", hashedId);
+				cookie.setSecure(true);
+				cookie.setHttpOnly(true);
+				cookie.setMaxAge(60 * 60); // 1 hour
+				response.addCookie(cookie);
+
+				response.sendRedirect("/sage");
+				return;
+			case "Complete Purchase":  // after PayPal payment - from checkout()
 				if (purchaseComplete(request)) {
 					out.println(thankYouPage(request));
 				} else throw new Exception("Unknown error");
-			} catch (Exception e) {
-				out.println(e.getMessage()==null?e.toString():e.getMessage());
-			}
-			return;
-		default:
-			try {  // login attempt from index.html
+				return;
+			default:
+				// login attempt from index.html
+				debug.append("3");
 				String gRecaptchaToken = request.getParameter("g-recaptcha-response");
 				if (gRecaptchaToken == null) {
 					throw new Exception("The reCaptcha token was missing. Your browser may have cached "
-							+ "an older version of the <a href=/ >home page</a>. Please clear the "
+							+ "an older version of the <a href=/?v=" + new Random().nextInt() + " >home page</a>. Please clear your "
 							+ "browser's cached pages and try again.");
 				}
+				debug.append("a");
 				
 				int captchaScore = Math.round(createAssessment(gRecaptchaToken,"request_login_token"));
+				debug.append("b");
 				
 				String email = request.getParameter("Email").trim().toLowerCase();
 				if (!EmailValidator.getInstance().isValid(email)) {
 					launchCounters[INVALID_EMAIL][captchaScore]++;
-					throw new Exception("Not a valid email address");
+					throw new Exception("We were unable to validate the email address: " + email);
 				}
-
+				debug.append("c");
+				
 				hashedId = getHash(email);
 				user = ofy().load().type(User.class).id(hashedId).now();
 				Date now  = new Date();
-
-				if (user != null && user.expires.after(now) && user.hashedId.equals(Sage.getFromCookie(request, response))) {  // returning user with active Cookie
-					launchCounters[RETURNING_COOKIE][captchaScore]++;
+				User cookieUser = Sage.getFromCookie(request, response); // may be null
+				if (user != null && user.expires.after(now) && cookieUser != null && user.hashedId.equals(cookieUser.hashedId)) {  // returning user with active Cookie
+					debug.append("i");
+					launchCounters[COOKIE_LOGIN][captchaScore]++;
 					out.println(Sage.start(user));
 				} else { // no valid Cookie; send login link
+					debug.append("ii");
 					Util.sendEmail(null,email,"Sage Login Link", tokenMessage(createToken(hashedId),request.getRequestURL().toString()));
 					launchCounters[TOKEN_SENT][captchaScore]++;
 					out.println(emailSent());
 					return;
 				}
-			} catch (Exception e) {
-				out.println(e.getMessage()==null?e.toString():e.getMessage());
 			}
+		} catch (Exception e) {
+			out.println(Util.head 
+					+ "<h1>Uh oh... we encountered an error.</h1>"
+					+ (e.getMessage()==null?e.toString():e.getMessage()) + "<br/>"
+					+ debug.toString() + "<p>"
+					+ Util.foot);
 		}
 	}
 
@@ -215,35 +224,48 @@ public class Launch extends HttpServlet {
 	static int createAssessment(String token, String recaptchaAction) throws Exception {
 		// create an Assessment of the Google reCaptcha token 
 		// (see https://cloud.google.com/recaptcha-enterprise/docs/create-assessment-website#create-assessment-Java)
-		
-		RecaptchaEnterpriseServiceClient client = RecaptchaEnterpriseServiceClient.create();
-		Event event = Event.newBuilder().setSiteKey(Util.getReCaptchaSiteKeyt()).setToken(token).build();
-		CreateAssessmentRequest createAssessmentRequest =
-			CreateAssessmentRequest.newBuilder()
-				.setParent(ProjectName.of(Util.projectId).toString())
-				.setAssessment(Assessment.newBuilder().setEvent(event).build())
-				.build();
-		Assessment response = client.createAssessment(createAssessmentRequest);
-		if (!response.getTokenProperties().getValid()) {
-	        throw new Exception("The CreateAssessment call failed because the token was: "
-	                + response.getTokenProperties().getInvalidReason().name());
+		StringBuffer debug = new StringBuffer("createAssessment:");
+		try {
+			debug.append("1");
+			RecaptchaEnterpriseServiceClient client = RecaptchaEnterpriseServiceClient.create();
+			debug.append("2<br/>" 
+					+ "RecaptchaSiteKey: " + Util.getReCaptchaSiteKey() + "<br/>" 
+					+ "RecaptchaToken: " + token);
+			Event event = Event.newBuilder().setSiteKey(Util.getReCaptchaSiteKey()).setToken(token).build();
+			debug.append("3");
+			CreateAssessmentRequest createAssessmentRequest =
+					CreateAssessmentRequest.newBuilder()
+					.setParent(ProjectName.of(Util.projectId).toString())
+					.setAssessment(Assessment.newBuilder().setEvent(event).build())
+					.build();
+			debug.append("4");
+			Assessment response = client.createAssessment(createAssessmentRequest);
+			debug.append("5");
+			if (!response.getTokenProperties().getValid()) {
+				throw new Exception("The CreateAssessment call failed because the token was: "
+						+ response.getTokenProperties().getInvalidReason().name());
+			}
+			if (!response.getTokenProperties().getAction().equals(recaptchaAction)) {
+				throw new Exception("The action attribute in the reCaptcha response token "
+						+ "does not match the expected action ('request_login_token')");
+			}
+			debug.append("4");
+			
+			// This section is reserved for future use if the reasons are desired
+			/*
+			StringBuffer reasons = new StringBuffer();
+			for (ClassificationReason reason : response.getRiskAnalysis().getReasonsList()) {
+		        reasons.append(reason + "<br/>");
+			}
+			*/
+			
+			// Google reCaptcha scores are floats ranging from 0.0 to 1.0
+			// These are multiplied 10X and rounded to integer values from 0 to 10
+			return Math.round(10*response.getRiskAnalysis().getScore());
+			
+		} catch (Exception e) {
+			throw new Exception((e.getMessage()==null?e.toString():e.getMessage()) + debug.toString());
 		}
-		if (!response.getTokenProperties().getAction().equals(recaptchaAction)) {
-			throw new Exception("The action attribute in the reCaptcha response token "
-					+ "does not match the expected action ('request_login_token')");
-		}
-	    
-		// This section is reserved for future use if the reasons are desired
-		/*
-		StringBuffer reasons = new StringBuffer();
-		for (ClassificationReason reason : response.getRiskAnalysis().getReasonsList()) {
-	        reasons.append(reason + "<br/>");
-		}
-		*/
-		
-		// Google reCaptcha scores are floats ranging from 0.0 to 1.0
-		// These are multiplied 10X and rounded to integer values from 0 to 10
-		return Math.round(10*response.getRiskAnalysis().getScore());
 	}
 	
 	static String createToken(String hashedId) throws Exception {
@@ -300,7 +322,7 @@ public class Launch extends HttpServlet {
 		buf.append("<tr><th>Outcome|Score</th><th>0.0</th><th>0.1</th><th>0.2</th><th>0.3</th><th>0.4</th><th>0.5</th><th>0.6</th><th>0.7</th><th>0.8</th><th>0.9</th><th>1.0</th></tr>");
 		// data from counter arrays
 		buf.append("<tr><td>Invalid Email</td><td>" + launchCounters[0][0] + "</td><td>" + launchCounters[0][1] + "</td><td>" + launchCounters[0][2] + "</td><td>" + launchCounters[0][3] + "</td><td>" + launchCounters[0][4] + "</td><td>" + launchCounters[0][5] + "</td><td>" + launchCounters[0][6] + "</td><td>" + launchCounters[0][7] + "</td><td>" + launchCounters[0][8] + "</td><td>" + launchCounters[0][9] + "</td><td>" + launchCounters[0][10]+ "</td></tr>");
-		buf.append("<tr><td>Returning Cookie</td><td>" + launchCounters[1][0] + "</td><td>" + launchCounters[1][1] + "</td><td>" + launchCounters[1][2] + "</td><td>" + launchCounters[1][3] + "</td><td>" + launchCounters[1][4] + "</td><td>" + launchCounters[1][5] + "</td><td>" + launchCounters[1][6] + "</td><td>" + launchCounters[1][7] + "</td><td>" + launchCounters[1][8] + "</td><td>" + launchCounters[1][9] + "</td><td>" + launchCounters[1][10] + "</td></tr>");
+		buf.append("<tr><td>Cookie Login</td><td>" + launchCounters[1][0] + "</td><td>" + launchCounters[1][1] + "</td><td>" + launchCounters[1][2] + "</td><td>" + launchCounters[1][3] + "</td><td>" + launchCounters[1][4] + "</td><td>" + launchCounters[1][5] + "</td><td>" + launchCounters[1][6] + "</td><td>" + launchCounters[1][7] + "</td><td>" + launchCounters[1][8] + "</td><td>" + launchCounters[1][9] + "</td><td>" + launchCounters[1][10] + "</td></tr>");
 		buf.append("<tr><td>Token Sent</td><td>" + launchCounters[2][0] + "</td><td>" + launchCounters[2][1] + "</td><td>" + launchCounters[2][2] + "</td><td>" + launchCounters[2][3] + "</td><td>" + launchCounters[2][4] + "</td><td>" + launchCounters[2][5] + "</td><td>" + launchCounters[2][6] + "</td><td>" + launchCounters[2][7] + "</td><td>" + launchCounters[2][8] + "</td><td>" + launchCounters[2][9] + "</td><td>" + launchCounters[2][10] + "</td></tr>");
 		buf.append("</table>");
 		return buf.toString();
@@ -366,7 +388,7 @@ public class Launch extends HttpServlet {
 			return decoded.getSubject();
 	}
 	
-	String welcomePage(String hashedId) {
+	String welcomePage(String hashedId) throws Exception {
 		StringBuffer buf = new StringBuffer(Util.head);
 		List<Concept> firstConcepts = ofy().load().type(Concept.class).order("orderBy").limit(4).list();
 		buf.append("<h1>Welcome to Sage</h1>"
@@ -380,7 +402,7 @@ public class Launch extends HttpServlet {
 				+ "subscription for only $5 USD per month.<p>"
 				+ "</div>"
 				+ "<form method=post>"
-				+ "<input type=hidden name=HashedId value=" + hashedId + " />"
+				+ "<input type=hidden name=token value=" + createToken(hashedId) + " />"
 				+ "<label><input type=checkbox required name=Terms />I agree to the <a href=/terms_and_conditions.html target=_blank>Sage Terms and Conditions of Use</a></label><br/>"
 				+ "<label><input type=checkbox required name=Terms />I understand that Sage subscription fees are nonrefundable.</label><p>"
 				+ "Select the starting point that best fits your needs:<br/>"

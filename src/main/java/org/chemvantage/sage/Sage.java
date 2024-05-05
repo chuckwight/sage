@@ -42,13 +42,13 @@ public class Sage extends HttpServlet {
 		PrintWriter out = response.getWriter();
 		response.setContentType("text/html");
 		
-		String hashedId = getFromCookie(request, response);
-		if (hashedId == null) response.sendRedirect("/");
+		User user = getFromCookie(request, response);
+		if (user == null) response.sendRedirect("/");
 		
 		try {
-			Score s = getScore(hashedId);
+			Score s = getScore(user);
 			if (s.questionId == null) {  // user is starting a new Concept
-				out.println(start(hashedId));
+				out.println(start(user));
 			} else {
 				boolean help = Boolean.parseBoolean(request.getParameter("Help"));
 				int parameter = 0;
@@ -70,13 +70,13 @@ public class Sage extends HttpServlet {
 		PrintWriter out = response.getWriter();
 		response.setContentType("text/html");
 
-		String hashedId = getFromCookie(request, response);
-		if (hashedId == null) response.sendRedirect("/");
+		User user = getFromCookie(request, response);
+		if (user == null) response.sendRedirect("/");
 
 		String userRequest = request.getParameter("UserRequest");
 		if (userRequest == null) userRequest = "";
 
-		Score s = getScore(hashedId);
+		Score s = getScore(user);
 		
 		switch (userRequest) {
 		case "Ask Sage":
@@ -230,7 +230,7 @@ public class Sage extends HttpServlet {
 		return true;
 	}
 	
-	static String getFromCookie(HttpServletRequest request, HttpServletResponse response) {
+	static User getFromCookie(HttpServletRequest request, HttpServletResponse response) {
 		try {
 			Cookie[] cookies = request.getCookies();
 			for (Cookie cookie : cookies) {
@@ -238,7 +238,7 @@ public class Sage extends HttpServlet {
 					User u = ofy().load().type(User.class).id(cookie.getValue()).safe();  // throws Exception if user does not exist
 					cookie.setMaxAge(3600);
 					response.addCookie(cookie);
-					return u.hashedId;
+					return u;
 				}
 			}
 			return null;
@@ -333,12 +333,12 @@ public class Sage extends HttpServlet {
 			return s;
 		}
 	}
-	
+/*	
 	static Score getScore(String hashedId) {
 		User user = ofy().load().type(User.class).id(hashedId).now();
 		return getScore(user);
 	}
-
+*/
 	static String orderResponses(String[] answers) {
 		if (answers==null) return "";
 		Arrays.sort(answers);
@@ -641,12 +641,12 @@ public class Sage extends HttpServlet {
 	
 		return questionScore;
 	}
-
+/*
 	static String start(String hashedId) throws Exception {
 		User user = ofy().load().type(User.class).id(hashedId).now();
 		return start(user);
 	}
-	
+*/	
 	static String start(User user) throws Exception {
 		StringBuffer buf = new StringBuffer(Util.head);
 		try {

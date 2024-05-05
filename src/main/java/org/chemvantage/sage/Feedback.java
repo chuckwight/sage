@@ -41,15 +41,15 @@ public class Feedback extends HttpServlet {
 	public void doGet(HttpServletRequest request,HttpServletResponse response)
 	throws ServletException, IOException {
 		
-		String hashedId = Sage.getFromCookie(request, response);
-		if (hashedId == null) response.sendRedirect("/");
+		User user = Sage.getFromCookie(request, response);
+		if (user == null) response.sendRedirect("/");
 		
 		String userRequest = request.getParameter("UserRequest");
 		if (userRequest == null) userRequest = "";
 
 		switch (userRequest) {  // only AJAX submissions
 		case "ReportAProblem":
-			reportAProblem(hashedId, request);
+			reportAProblem(user, request);
 			break;
 		case "HelpfulHint":
 			reportHelpfulHint(request);
@@ -67,8 +67,8 @@ public class Feedback extends HttpServlet {
 		response.setContentType("text/html");
 		PrintWriter out = response.getWriter();
 
-		String hashedId = Sage.getFromCookie(request, response);
-		if (hashedId == null) response.sendRedirect("/");
+		User user = Sage.getFromCookie(request, response);
+		if (user == null) response.sendRedirect("/");
 		
 		String userRequest = request.getParameter("UserRequest");
 		if (userRequest == null) userRequest = "";
@@ -76,7 +76,7 @@ public class Feedback extends HttpServlet {
 		switch (userRequest ) {
 		case "Submit Feedback":
 			try {
-				out.println(Util.head + submitFeedback(hashedId,request) + Util.foot);
+				out.println(Util.head + submitFeedback(user,request) + Util.foot);
 			} catch (Exception e) {}
 			break;
 		}
@@ -88,7 +88,7 @@ public class Feedback extends HttpServlet {
 		return buf.toString();
 	}
 	
-	static void reportAProblem(String hashedId, HttpServletRequest request) {
+	static void reportAProblem(User user, HttpServletRequest request) {
 		try {
 			long questionId = Long.parseLong(request.getParameter("QuestionId"));
 			int[] params = {0,0,0,0};
@@ -99,7 +99,7 @@ public class Feedback extends HttpServlet {
 			String notes = request.getParameter("Notes");
 			String email = request.getParameter("Email");
 			String studentAnswer = request.getParameter("StudentAnswer");
-			UserReport r = new UserReport(hashedId,questionId,params,studentAnswer,notes);
+			UserReport r = new UserReport(user.hashedId,questionId,params,studentAnswer,notes);
 			ofy().save().entity(r);
 			if (email != null && !email.isEmpty()) sendEmailToAdmin(r,email);
 		} catch (Exception e) {
@@ -136,12 +136,12 @@ public class Feedback extends HttpServlet {
 		} catch (Exception e) {}
 	}
 	
-	static String submitFeedback(String hashedId, HttpServletRequest request) throws Exception {
+	static String submitFeedback(User user, HttpServletRequest request) throws Exception {
 		StringBuffer buf = new StringBuffer(Util.head);
 		
 		String comments = request.getParameter("Comments");
 		String nStars = request.getParameter("NStars");
-		UserReport r = new UserReport(hashedId,nStars,comments);
+		UserReport r = new UserReport(user.hashedId,nStars,comments);
 		ofy().save().entity(r);
 		
 		String email = request.getParameter("Email");

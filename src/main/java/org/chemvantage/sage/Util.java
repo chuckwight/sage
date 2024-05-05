@@ -62,7 +62,7 @@ public class Util {
 	static public String getHMAC256Secret() {if (u==null) init(); return u.HMAC256Secret;}
 	static public String getOpenAIKey() {if (u==null) init(); return u.openai_key;}
 	static public String getReCaptchaSecret() {if (u==null) init(); return u.reCaptchaSecret;}
-	static public String getReCaptchaSiteKeyt() {if (u==null) init(); return u.reCaptchaSiteKey;}
+	static public String getReCaptchaSiteKey() {if (u==null) init(); return u.reCaptchaSiteKey;}
 	static public String getSalt() {if (u==null) init(); return u.salt;}
 	static public String getSendGridAPIKey() {if (u==null) init(); return u.sendGridAPIKey;}
 	static public String getPayPalClientId(String serverName) {
