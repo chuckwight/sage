@@ -296,22 +296,33 @@ public class Sage extends HttpServlet {
 	}
 
 	static Long getNewQuestionId(Score s) throws Exception {
-		// We select the next question by calculating the user's scoreQuintile (1 - 5) and selecting
-		// a question at random from those having the same degree of difficulty (1-5) so that more 
-		// advanced users are offered more difficult questions as they progress through the Concept.
+		// We select the next question by calculating the user's scoreQuintile (1-5) and selecting
+		// a question at random from those having a similar degree of difficulty (1-5). The selection 
+		// process is random, but a bias is imposed to ensure that there is a 50% chance of selecting 
+		// a question where the difficulty is the same as the user's scoreQuintile.
+		int[][] qSelCutoff = { {10,17,20,20},{4,14,18,20},{1,5,15,19},{0,2,6,16},{0,0,3,10} };
 		
 		Long currentQuestionId = s.questionId;  // don't duplicate this
-		int scoreQuintile = s.score/20 + 1;
+		int scoreQuintile = s.score/20;			// ranges from 0-4
 		int nConceptQuestions = ofy().load().type(Question.class).filter("conceptId",s.conceptId).count();
 		if (nConceptQuestions == 0) throw new Exception("Sorry, there are no questions for this Concept.");
 		
-		int nQuintileQuestions =  ofy().load().type(Question.class).filter("conceptId",s.conceptId).filter("difficulty",scoreQuintile).count();
+		// select a level of difficulty between 0-4 based on user's scoreQuintile
+		Random rand = new Random();
+		int r = rand.nextInt(20);
+		int difficulty = 4;
+		for (int i=0;i<4;i++) {
+			if (r < qSelCutoff[scoreQuintile][i]) {
+				difficulty = i;
+				break;
+			}
+		}
+		int nQuintileQuestions =  ofy().load().type(Question.class).filter("conceptId",s.conceptId).filter("difficulty",difficulty).count();
 		
 		// select one question index at random
 		Key<Question> k = null;
-		Random rand = new Random();
 		if (nQuintileQuestions >= 5) {
-			k = ofy().load().type(Question.class).filter("conceptId",s.conceptId).filter("difficulty",scoreQuintile).offset(rand.nextInt(nQuintileQuestions)).keys().first().safe();
+			k = ofy().load().type(Question.class).filter("conceptId",s.conceptId).filter("difficulty",difficulty).offset(rand.nextInt(nQuintileQuestions)).keys().first().safe();
 		} else {  // use the full range of questions for this Concept
 			k = ofy().load().type(Question.class).filter("conceptId",s.conceptId).offset(rand.nextInt(nConceptQuestions)).keys().first().safe();	
 		}
