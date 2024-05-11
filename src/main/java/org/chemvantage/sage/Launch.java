@@ -2,14 +2,20 @@ package org.chemvantage.sage;
 
 import static com.googlecode.objectify.ObjectifyService.ofy;
 
+import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStreamReader;
 import java.io.PrintWriter;
+import java.net.HttpURLConnection;
+import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
+import java.text.SimpleDateFormat;
 import java.util.Calendar;
 import java.util.Date;
 import java.util.List;
 import java.util.Random;
+import java.util.TimeZone;
 
 import org.apache.commons.validator.routines.EmailValidator;
 
@@ -18,6 +24,8 @@ import com.auth0.jwt.algorithms.Algorithm;
 import com.auth0.jwt.interfaces.DecodedJWT;
 import com.auth0.jwt.interfaces.JWTVerifier;
 import com.google.cloud.recaptchaenterprise.v1.RecaptchaEnterpriseServiceClient;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 import com.google.recaptchaenterprise.v1.Assessment;
 import com.google.recaptchaenterprise.v1.CreateAssessmentRequest;
 import com.google.recaptchaenterprise.v1.Event;
@@ -55,15 +63,24 @@ public class Launch extends HttpServlet {
 	public void doGet(HttpServletRequest request,HttpServletResponse response)
 			throws ServletException, IOException {
 		
+		PrintWriter out = response.getWriter();
+		response.setContentType("text/html");
+		
+		// AJAX subscription verification
+		String hashedId = request.getParameter("verify");
+		if (hashedId != null) {
+			User user = ofy().load().type(User.class).id(hashedId).now();
+			if (user != null && user.expires.after(new Date())) out.println("true");
+			else response.setStatus(204);
+			return;
+		}
+		
 		//  This method permits login using a valid tokenized link.
 		String token = request.getParameter("Token");
 		if (token==null) response.sendRedirect("/");
 		
-		PrintWriter out = response.getWriter();
-		response.setContentType("text/html");
-		
 		try {  // token login
-			String hashedId = validateToken(token);
+			hashedId = validateToken(token);
 			User user = ofy().load().type(User.class).id(hashedId).now();
 			
 			Date now = new Date();
@@ -122,8 +139,15 @@ public class Launch extends HttpServlet {
 				return;
 			case "Complete Purchase":  // after PayPal payment - from checkout()
 				if (purchaseComplete(request)) {
+					hashedId = request.getParameter("HashedId");
+					cookie = new Cookie("hashedId", hashedId);
+					cookie.setSecure(true);
+					cookie.setHttpOnly(true);
+					cookie.setMaxAge(60 * 60); // 1 hour
+					response.addCookie(cookie);
+					
 					out.println(thankYouPage(request));
-				} else throw new Exception("Unknown error");
+				} else out.println("Sorry, something went wrong.");
 				return;
 			default:
 				// login attempt from index.html
@@ -186,10 +210,10 @@ public class Launch extends HttpServlet {
 				+ "<img src=/images/sage.png alt='Confucius Parrot' style='float:right'>"
 				+ "</div><p>"
 				+ "<label><input type=checkbox id=terms onChange=showPurchase();> I understand and agree to the <a href=/terms_and_conditions.html target=_blank>Sage Terms and Conditions of Use</a>.</label> <br/>"
-				+ "<label><input type=checkbox id=norefunds onChange=showPurchase();> I understand that all Sage subscription fees are non-refundable.</label> <p>"
-				+ "<div id=purchase style='display:none'>\n");
+				+ "<label><input type=checkbox id=norefunds onChange=showPurchase();> I understand that all Sage subscription fees are non-refundable.</label> <p>");
 				
-		buf.append("Select the number of months you wish to purchase: "
+		buf.append("<div id=purchase style='display:none'>"
+				+ "Select the number of months you wish to purchase: "
 				+ "<select id=nMonthsChoice onChange=updateAmount();>"
 				+ "<option value=1>1 month</option>"
 				+ "<option value=2>2 months</option>"
@@ -210,14 +234,17 @@ public class Launch extends HttpServlet {
 		buf.append("<script>initPayPalButton('" + user.hashedId + "')</script>");
 		
 		// Add a hidden activation form to submit via javascript when the payment is successful
-		buf.append("<form id=activationForm method=post>"
+		buf.append("<form id=activationForm method=post action='/launch' >"
 				+ "<input type=hidden name=UserRequest value='Complete Purchase' />"
-				+ "<input type=hidden name=NMonths id=nmonths />"
-				+ "<input type=hidden name=AmountPaid id=amtPaid />"
+				//+ "<input type=hidden name=NMonths id=nmonths />"
+				//+ "<input type=hidden name=AmountPaid id=amtPaid />"
 				+ "<input type=hidden name=OrderDetails id=orderdetails />"
 				+ "<input type=hidden name=HashedId value='" + user.hashedId + "' />"
 				+ "</form>");
-	
+		
+		// Javascript verifies that subscription has expired to prevent duplicate payments
+		buf.append("<script>verifySubscription('" + user.hashedId + "');</script>");
+		
 		return buf.toString() + Util.foot;
 	}
 
@@ -329,32 +356,75 @@ public class Launch extends HttpServlet {
 	}
 
 	static boolean purchaseComplete(HttpServletRequest request) throws Exception {
-			int nmonths = Integer.parseInt(request.getParameter("NMonths"));
+		JsonObject orderDetails = null;
+		String access_token = null;
+		try {
+			// get the PayPal transactionId from the user's browser
+			String transactionId = JsonParser.parseString(request.getParameter("OrderDetails")).getAsJsonObject().get("id").getAsString();
+			
+			// contact PayPal directly to get the order details
+			URL u = new URL("https://api." + (request.getServerName().contains("localhost")?"sandbox.":"") + "paypal.com/v2/checkout/orders/" + transactionId);
+			HttpURLConnection uc = (HttpURLConnection) u.openConnection();
+			uc.setRequestMethod("GET");
+			access_token = Util.getPayPalAccessToken(request.getServerName());
+			uc.setRequestProperty("Authorization", "Bearer " + access_token);
+			uc.setReadTimeout(15000);  // waits up to 15 s for server to respond
+			uc.connect();
+			BufferedReader reader = new BufferedReader(new InputStreamReader(uc.getInputStream()));
+			orderDetails = JsonParser.parseReader(reader).getAsJsonObject();
+			reader.close();
+			
+			// check the status, current Date/Time and amount paid in USD
+			if (!orderDetails.get("status").getAsString().equals("COMPLETED")) throw new Exception("Order status not COMPLETED.");
+			SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'");
+			dateFormat.setLenient(true);
+			dateFormat.setTimeZone(TimeZone.getTimeZone("UTC"));
+			Date update_time = dateFormat.parse(orderDetails.get("update_time").getAsString());
+			long seconds = (new Date().getTime()-update_time.getTime())/1000L;
+			if (seconds < -120 || seconds > 6000) throw new Exception("Purchase time is invalid: " + update_time);
+			JsonObject amount = orderDetails.get("purchase_units").getAsJsonArray().get(0).getAsJsonObject().get("amount").getAsJsonObject();
+			if (!amount.get("currency_code").getAsString().equals("USD")) throw new Exception("Payment was not in USD.");
+			int value = (int)amount.get("value").getAsDouble();
+			
+			// calculate the months of subscription from the amount paid
+			int nMonths = 0;
+			switch (value) {
+			case Util.price: nMonths=1; break;
+			case 2*Util.price: nMonths=2; break;
+			case 4*Util.price: nMonths=5; break;
+			case 8*Util.price: nMonths=12; break;
+			default: throw new Exception("Amount paid was not valid.");
+			}
+			
+			// Set the new expiration Date for the user's subscription
 			String hashedId = request.getParameter("HashedId");
-			if (!request.getParameter("OrderDetails").contains(hashedId)) throw new Exception("Not a valid user.");
-			
-			// At this point it looks like a valid purchase; update the User's expiration date
-			Calendar cal = Calendar.getInstance();
-			cal.add(Calendar.MONTH, nmonths);
-			
-			User user = ofy().load().type(User.class).id(hashedId).safe();
+			User user = ofy().load().type(User.class).id(hashedId).now();
+			if (user==null) throw new Exception("User was not found in the datastore");
+			Calendar cal = dateFormat.getCalendar();
+			cal.add(Calendar.MONTH,nMonths);
 			user.expires = cal.getTime();
-			ofy().save().entity(user).now();
-			request.getSession().setAttribute("hashedId", hashedId);
-			
+			ofy().save().entity(user).now();			
 			return true;
+		} catch (Exception e) {  // FAILED PayPal payment transaction!
+			String message = "<h1>Failed PayPal Payment</h1>"
+					+ "Error: " + e.toString() + ": " + e.getMessage() + "<p>"
+					+ "Please contact admin@chemvantage.org if you need assistance.<p>"
+					+ "User-provided order details:<br/>" + request.getParameter("OrderDetails") + "<p>"
+					+ "Access token: " + access_token + "<p>"
+					+ "PayPal-provided details:<br/>" + (orderDetails==null?"(null)":orderDetails.toString());
+			Util.sendEmail("Sage Admin", "admin@chemvantage.org", "Failed PayPal Payment", message);
+			throw new Exception(message);
+		}
+		//return false;
 	}
 
 	static String thankYouPage(HttpServletRequest request) {
 		StringBuffer buf = new StringBuffer(Util.head);
-		String hashedId = request.getParameter("HashedId");
 		String orderDetails = request.getParameter("OrderDetails");
-		
-		User user = ofy().load().type(User.class).id(hashedId).now();
-		
+		User user = ofy().load().type(User.class).id(request.getParameter("HashedId")).now();
 		buf.append("<h1>Thank you for your purchase</h1>"
-				+ "It is now " + new Date() + "<p>"
-				+ "Your Sage subscription expires " + user.expires + "<p>"
+				+ "Date: " + new Date() + "<p>"
+				+ "Your Sage subscription is now activated. It expires " + user.expires + ".<p>"
 				+ "Please keep a copy of this page as proof of purchase.<p>"
 				+ "<a class=btn role=button href='/sage'>Continue</a><p>"
 				+ "Purchase Details:<br/>" + orderDetails + "<p>");

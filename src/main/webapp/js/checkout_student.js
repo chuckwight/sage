@@ -5,7 +5,7 @@
     if (agreeTerms.checked && agreeNoRefunds.checked) purchase.style = 'display:inline';
    	else purchase.style = 'display:none';
   }
-  var price = 5;
+  var price = 5;  // base monthly price set here and in Util.price
   var nMonths = 5;
   var amtPaid = "";
   var nMonthsInp = document.getElementById("nMonthsChoice");
@@ -21,6 +21,7 @@
 	document.getElementById("amt").innerHTML=nMonths + (nMonths=="1"?' month':' months') + ' - $' + amtPaid + '.00 USD';
   }
   updateAmount();
+  
   function initPayPalButton(hashedId) {
     paypal.Buttons({
     style: {
@@ -38,8 +39,8 @@
           // Full available details
           console.log('Capture result', orderData, JSON.stringify(orderData, null, 2));
           // Submit form
-          document.getElementById('nmonths').value=nMonths;
-          document.getElementById('amtPaid').value=amtPaid;
+          //document.getElementById('nmonths').value=nMonths;
+          //document.getElementById('amtPaid').value=amtPaid;
           document.getElementById('orderdetails').value=JSON.stringify(orderData, null, 2);
           document.getElementById('activationForm').submit();
           // actions.redirect('thank_you.html');
@@ -48,6 +49,17 @@
       onError: function(err) {
         console.log(err);
       }
-    }).render('#paypal-button-container');
+    }).render('#paypal-button-container');  
   }
-
+  
+  function verifySubscription(hashedId) {
+    var xmlhttp = new XMLHttpRequest();
+    var url = 'https://sage.chemvantage.org/launch?verify=' + hashedId;
+    xmlhttp.open('GET',url,true);
+    xmlhttp.onreadystatechange=function() {
+      if (xmlhttp.readyState==4) {
+        if (this.responseText == 'true') document.getElementById('purchase').innerHTML = '<h2>Your subscription is active.</h2>';
+      }
+    }
+    xmlhttp.send();
+  }
