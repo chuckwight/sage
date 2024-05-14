@@ -422,9 +422,6 @@ public class Launch extends HttpServlet {
 		StringBuffer buf = new StringBuffer(Util.head);
 		String orderDetails = request.getParameter("OrderDetails");
 		User user = ofy().load().type(User.class).id(request.getParameter("HashedId")).now();
-		buf.append("<!-- Google tag (gtag.js) --> "
-				+ "<script async src=\"https://www.googletagmanager.com/gtag/js?id=AW-942360432\"></script> "
-				+ "<script> window.dataLayer = window.dataLayer || []; function gtag(){dataLayer.push(arguments);} gtag('js', new Date()); gtag('config', 'AW-942360432'); </script>");
 		buf.append("<h1>Thank you for your purchase</h1>"
 				+ "Date: " + new Date() + "<p>"
 				+ "Your Sage subscription is now activated. It expires " + user.expires + ".<p>"
@@ -464,9 +461,6 @@ public class Launch extends HttpServlet {
 	String welcomePage(String hashedId) throws Exception {
 		StringBuffer buf = new StringBuffer(Util.head);
 		List<Concept> firstConcepts = ofy().load().type(Concept.class).order("orderBy").limit(4).list();
-		buf.append("<!-- Google tag (gtag.js) --> "
-				+ "<script async src=\"https://www.googletagmanager.com/gtag/js?id=AW-942360432\"></script> "
-				+ "<script> window.dataLayer = window.dataLayer || []; function gtag(){dataLayer.push(arguments);} gtag('js', new Date()); gtag('config', 'AW-942360432'); </script>");
 		buf.append("<h1>Welcome to Sage</h1>"
 				+ "<h2>Sage is an AI-powered tutor for General Chemistry.</h2>"
 				+ "<div style='max-width:800px;'>"

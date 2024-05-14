@@ -53,6 +53,9 @@ public class Util {
 			+ "  <title>Sage</title>\n"
 			+ "  <link href='https://fonts.googleapis.com/css2?family=Poppins:wght@100;200;300;400;500;600;700;800;900&family=Shantell+Sans:wght@300;400;500;600;700;800&display=swap' rel='stylesheet'/>\n"
 			+ "  <link rel='stylesheet' href='/css/style.css'>\n"
+			+ "<!-- Google tag (gtag.js) --> "
+			+ "<script async src=\"https://www.googletagmanager.com/gtag/js?id=AW-942360432\"></script> "
+			+ "<script> window.dataLayer = window.dataLayer || []; function gtag(){dataLayer.push(arguments);} gtag('js', new Date()); gtag('config', 'AW-942360432'); </script>"
 			+ "</head>\n"
 			+ "<body>\n";
 	
