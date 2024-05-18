@@ -147,7 +147,7 @@ public class Sage extends HttpServlet {
 		try {
 			BufferedReader reader = null;
 			JsonObject api_request = new JsonObject();  // these are used to score essay questions using ChatGPT
-			api_request.addProperty("model","gpt-4");
+			api_request.addProperty("model",Util.getGPTModel());
 			api_request.addProperty("max_tokens",400);
 			api_request.addProperty("temperature",0.4);
 			
@@ -155,8 +155,7 @@ public class Sage extends HttpServlet {
 			JsonObject m1 = new JsonObject();  // api request message
 			m1.addProperty("role", "system");
 			m1.addProperty("content","You are a tutor assisting a college student taking General Chemistry. "
-					+ "The student has successfully completed " + s.score + "% of the exercises on the topic of " + topic + " "
-					+ "and has a question for you. You must restrict your answer to this topic in General Chemistry.");
+					+ "You must restrict your response to the topic " + topic + " in General Chemistry.");
 			messages.add(m1);;
 			JsonObject m2 = new JsonObject();  // api request message
 			m2 = new JsonObject();  // api request message
@@ -251,7 +250,7 @@ public class Sage extends HttpServlet {
 		
 		BufferedReader reader = null;
 		JsonObject api_request = new JsonObject();  // these are used to score essay questions using ChatGPT
-		api_request.addProperty("model","gpt-4");
+		api_request.addProperty("model",Util.getGPTModel());
 		api_request.addProperty("max_tokens",200);
 		api_request.addProperty("temperature",0.2);
 		
@@ -260,7 +259,7 @@ public class Sage extends HttpServlet {
 		m1.addProperty("role", "system");
 		m1.addProperty("content","You are a tutor assisting a college student taking General Chemistry. "
 				+ "The student is requesting your help to answer a homework question. Guide the student "
-				+ "in the right general direction, but do not give the correct answer to the question.");
+				+ "in the right general direction, but do not give the correct answer to the question. ");
 		messages.add(m1);;
 		JsonObject m2 = new JsonObject();  // api request message
 		m2 = new JsonObject();  // api request message
@@ -344,12 +343,7 @@ public class Sage extends HttpServlet {
 			return s;
 		}
 	}
-/*	
-	static Score getScore(String hashedId) {
-		User user = ofy().load().type(User.class).id(hashedId).now();
-		return getScore(user);
-	}
-*/
+
 	static String orderResponses(String[] answers) {
 		if (answers==null) return "";
 		Arrays.sort(answers);
@@ -506,9 +500,9 @@ public class Sage extends HttpServlet {
 			buf.append(api_score.get("feedback") + "<p>");
 			break;
 		default: // just print the solution
-			buf.append(q.printAllToStudents(studentAnswer));
+			buf.append(q.printAllToStudents(studentAnswer) + "<br/>");
 		}	
-		buf.append("</div>");			
+		buf.append("</div>\n");			
 		buf.append("<script src='/js/report_problem.js'></script>");
 		return buf.toString();
 	}
@@ -554,8 +548,7 @@ public class Sage extends HttpServlet {
 		case 7:  // New section for scoring essay questions with Chat GPT
 			if (studentAnswer.length()>800) studentAnswer = studentAnswer.substring(0,799);
 			JsonObject api_request = new JsonObject();  // these are used to score essay questions using ChatGPT
-			api_request.addProperty("model","gpt-4");
-			//api_request.addProperty("model","gpt-3.5-turbo");
+			api_request.addProperty("model",Util.getGPTModel());
 			api_request.addProperty("max_tokens",200);
 			api_request.addProperty("temperature",0.2);
 			JsonObject m = new JsonObject();  // api request message
@@ -638,11 +631,11 @@ public class Sage extends HttpServlet {
 						+ " <div id=result><b>Don't give up!</b><br/>\n"
 						+ "  If you feel frustrated, take a break. You can read more about this concept in a "
 						+ "  <a href=https://openstax.org/details/books/chemistry-2e target=_openstax>free online chemistry textbook</a> "
-						+ "  published by OpenStax. When you're refreshed, you can come back and continue your progress here.<p>"
+						+ "  published by OpenStax. When you're refreshed, you can come back and continue your progress here.<p>\n"
 						+ showMeLink
 						+ " </div>"
 						+ printSolution(q,studentAnswer,api_score)
-						+ "<img id=polly src='/images/parrot0.png' alt='Parrot character' style='margin-left:20px;'>"
+						+ "<img id=polly src='/images/parrot0.png' alt='Parrot character' style='margin-left:20px;'>\n"
 						+ "</div>");
 				break;
 			}
@@ -652,12 +645,7 @@ public class Sage extends HttpServlet {
 	
 		return questionScore;
 	}
-/*
-	static String start(String hashedId) throws Exception {
-		User user = ofy().load().type(User.class).id(hashedId).now();
-		return start(user);
-	}
-*/	
+
 	static String start(User user) throws Exception {
 		StringBuffer buf = new StringBuffer(Util.head);
 		try {

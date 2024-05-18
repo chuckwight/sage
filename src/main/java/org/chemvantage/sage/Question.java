@@ -19,7 +19,12 @@ package org.chemvantage.sage;
 
 import static com.googlecode.objectify.ObjectifyService.ofy;
 
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
+import java.io.OutputStream;
 import java.io.Serializable;
+import java.net.HttpURLConnection;
+import java.net.URL;
 import java.net.URLEncoder;
 import java.text.Collator;
 import java.text.DecimalFormat;
@@ -30,6 +35,9 @@ import java.util.Random;
 
 import com.bestcode.mathparser.IMathParser;
 import com.bestcode.mathparser.MathParserFactory;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 import com.googlecode.objectify.annotation.Entity;
 import com.googlecode.objectify.annotation.Id;
 import com.googlecode.objectify.annotation.Ignore;
@@ -55,6 +63,7 @@ public class Question implements Serializable, Cloneable {
 			String authorId;
 			String contributorId;
 			String editorId;
+			String explanation;
 			String sageAdvice;
 			boolean scrambleChoices;
 			boolean strictSpelling;
@@ -115,7 +124,14 @@ public class Question implements Serializable, Cloneable {
 		this.editorId = editorId;
 		this.isActive = false;
 	}
-
+	
+/*
+	static String convertMarkdownToHtml(String input) {
+		Parser parser = Parser.builder().build();  // markdown parser
+		HtmlRenderer renderer = HtmlRenderer.builder().build();
+		return renderer.render(parser.parse(input));
+	}
+*/	
 	public void validateFields() {
 		if (text==null) text="";
 		if (type==null) type="";
@@ -184,6 +200,54 @@ public class Question implements Serializable, Cloneable {
 		}  
 	}
 	
+	String getExplanation() {
+		StringBuffer buf = new StringBuffer();
+		if (explanation != null && !explanation.isEmpty()) buf.append(explanation);
+		else {
+			try {
+				BufferedReader reader = null;
+				JsonObject api_request = new JsonObject();  // these are used to score essay questions using ChatGPT
+				api_request.addProperty("model",Util.getGPTModel());
+				api_request.addProperty("max_tokens",600);
+				api_request.addProperty("temperature",0.4);
+
+				JsonArray messages = new JsonArray();
+				JsonObject m1 = new JsonObject();  // api request message
+				m1.addProperty("role", "system");
+				m1.addProperty("content","You are a tutor assisting a college student taking General Chemistry. ");
+				JsonObject m2 = new JsonObject();
+				m2.addProperty("role", "user");
+				m2.addProperty("content","Briefly explain why\n" + getCorrectAnswer() + "\n"
+						+ "is the correct answer to this problem:\n" + printForSage());
+				messages.add(m1);
+				messages.add(m2);
+				api_request.add("messages", messages);
+				URL u = new URL("https://api.openai.com/v1/chat/completions");
+				HttpURLConnection uc = (HttpURLConnection) u.openConnection();
+				uc.setRequestMethod("POST");
+				uc.setDoInput(true);
+				uc.setDoOutput(true);
+				uc.setRequestProperty("Authorization", "Bearer " + Util.getOpenAIKey());
+				uc.setRequestProperty("Content-Type", "application/json");
+				uc.setRequestProperty("Accept", "application/json");
+				OutputStream os = uc.getOutputStream();
+				byte[] json_bytes = api_request.toString().getBytes("utf-8");
+				os.write(json_bytes, 0, json_bytes.length);           
+				os.close();
+
+				reader = new BufferedReader(new InputStreamReader(uc.getInputStream()));
+				JsonObject api_response = JsonParser.parseReader(reader).getAsJsonObject();
+				reader.close();
+				this.explanation = api_response.get("choices").getAsJsonArray().get(0).getAsJsonObject().get("message").getAsJsonObject().get("content").getAsString();
+				if (!this.requiresParser()) ofy().save().entity(this);
+				buf.append(explanation.replace("\\[","\\\\[").replace("\\]","\\\\]").replace("\\(","\\\\(").replace("\\)","\\\\)"));
+			} catch (Exception e) {
+				buf.append("<br/>Sorry, Sage was unable to comment. " + (e.getMessage()==null?e.toString():e.toString() + ":" + e.getMessage()) + "<p>");
+			}
+		}
+		return buf.toString();
+	}
+
 	int getNumericItemType() {
 		if (requiredPrecision==0.0 && significantFigures==0) return 0;      // Q: rules/format  A: exact value match
 		else if (requiredPrecision==0.0 && significantFigures!=0) return 1; // Q: show sig figs A: exact value match
@@ -528,7 +592,11 @@ public class Question implements Serializable, Cloneable {
 		// this differs from printAll() because only the first of several 
 		// correct fill-in-word answers is presented, and choices are not scrambled
 		// showDetails enables display of Solution to numeric problems (default = true)
-		StringBuffer buf = new StringBuffer("<a name=" + this.id + "></a>");
+		StringBuffer buf = new StringBuffer("\n<a name=" + this.id + "></a>\n");
+		buf.append("<script src='https://cdn.jsdelivr.net/npm/marked/marked.min.js'></script>\n");
+		buf.append("<script src='https://polyfill.io/v3/polyfill.min.js?features=es6'></script>\n"
+				+ "<script id='MathJax-script' async src='https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js'></script>\n");
+		
 		char choice = 'a';
 		switch (getQuestionType()) {
 		case 1: // Multiple Choice
@@ -541,6 +609,7 @@ public class Question implements Serializable, Cloneable {
 						+ (showDetails && correctAnswer.indexOf(choice)>=0?"</B>":"</FONT>") + "<br/>");
 				choice++;
 			}
+			buf.append("<br/>Sage says: <div id=sage_says>" + getExplanation() + "</div>\n");
 			break;
 		case 2: // True/False
 			buf.append(text + "<br/>");
@@ -552,6 +621,7 @@ public class Question implements Serializable, Cloneable {
 					+ (showDetails && correctAnswer.equals("false")?"<B>False</B>":"<FONT COLOR=#888888>False</FONT>")
 					+ "</LI>");
 			buf.append("</UL>");
+			buf.append("<br/>Sage says: <div id=sage_says>" + getExplanation() + "</div>\n");
 			break;
 		case 3: // Select Multiple
 			buf.append(text + "<br/>");
@@ -563,6 +633,7 @@ public class Question implements Serializable, Cloneable {
 						+ (showDetails && correctAnswer.indexOf(choice)>=0?"</B>":"</FONT>") + "<br/>");
 				choice++;
 			}
+			buf.append("<br/>Sage says: <div id=sage_says>" + getExplanation() + "</div>\n");
 			break;
 		case 4: // Fill-in-the-Word
 			buf.append(text + "<br/>");
@@ -572,6 +643,7 @@ public class Question implements Serializable, Cloneable {
 					+ (showDetails?"<b>" + quot2html(answers[0]) + "</b>":"&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;")
 					+ "</span>");
 			if (tag.length() > 0) buf.append("&nbsp;" + tag + "<br/>");
+			buf.append("<br/>Sage says: <div id=sage_says>" + getExplanation() + "</div>\n");
 			break;
 		case 5: // Numeric Answer
 			buf.append(parseString(text) + "<br/>");
@@ -586,10 +658,8 @@ public class Question implements Serializable, Cloneable {
 			buf.append("<span style='border: 1px solid black'>"
 					+ (showDetails?"<b>" + getCorrectAnswer() + "</b>":"&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;")
 					+ "</span>");
-			buf.append("&nbsp;" + parseString(tag) + "<br/>");
-			if (showDetails && solution.length()>0) {
-				buf.append("<br/>Solution:<br/>" + parseString(solution) + "<br/>");
-			}
+			buf.append("&nbsp;" + parseString(tag) + "<br/>\n");
+			buf.append("<br/>Sage says: <div id=sage_says>" + getExplanation() + "</div>\n");
 			break;        
 		case 6:
 			buf.append(parseString(text) + "<br/>");
@@ -606,9 +676,13 @@ public class Question implements Serializable, Cloneable {
 			buf.append(text);
 			buf.append("<br/>");
 			buf.append("<span style='color:#990000;font-size:small;'>(800 characters max):</span><br/>");
-			//buf.append("<textarea rows=5 cols=60 wrap=soft placeholder='Enter your answer here' maxlength=800 >" + studentAnswer + "</textarea><br/>");
 			break;
 		}
+		buf.append("<script src='https://cdn.jsdelivr.net/npm/marked/marked.min.js'></script>"
+				+ "<script>\n"
+				+ "let s = document.getElementById('sage_says');"
+				+ "if (s != null) s.innerHTML = marked.parse(s.innerHTML);"
+				+ "</script>");
 		
 		buf.append("<br/>");
 		if (showWork != null && !showWork.isEmpty()) buf.append("<b>Student work:</b><br/><div style='border-style: solid; border-width: thin; white-space: pre-wrap;'>" + showWork + "</div>");	

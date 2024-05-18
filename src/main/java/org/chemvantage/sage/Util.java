@@ -37,6 +37,7 @@ public class Util {
 	private String payPalDefaultClientId = "ChangeMe";
 	private String payPalDefaultSecret = "ChangeMe";
 	private String sendGridAPIKey = "ChangeMe";
+	private String gptModel = "ChangeMe";
 	private static Util u;
 	@Ignore static final int price = 5;  // base monthly subscription price set here and checkout_student.js
 	@Ignore static String projectId = ServiceOptions.getDefaultProjectId();
@@ -53,9 +54,9 @@ public class Util {
 			+ "  <title>Sage</title>\n"
 			+ "  <link href='https://fonts.googleapis.com/css2?family=Poppins:wght@100;200;300;400;500;600;700;800;900&family=Shantell+Sans:wght@300;400;500;600;700;800&display=swap' rel='stylesheet'/>\n"
 			+ "  <link rel='stylesheet' href='/css/style.css'>\n"
-			+ "<!-- Google tag (gtag.js) --> "
-			+ "<script async src=\"https://www.googletagmanager.com/gtag/js?id=AW-942360432\"></script> "
-			+ "<script> window.dataLayer = window.dataLayer || []; function gtag(){dataLayer.push(arguments);} gtag('js', new Date()); gtag('config', 'AW-942360432'); </script>"
+			+ "  <!-- Google tag (gtag.js) --> "
+			+ "  <script async src=\"https://www.googletagmanager.com/gtag/js?id=AW-942360432\"></script> "
+			+ "  <script> window.dataLayer = window.dataLayer || []; function gtag(){dataLayer.push(arguments);} gtag('js', new Date()); gtag('config', 'AW-942360432'); </script>"
 			+ "</head>\n"
 			+ "<body>\n";
 	
@@ -76,6 +77,7 @@ public class Util {
 	static public String getReCaptchaSiteKey() {if (u==null) init(); return u.reCaptchaSiteKey;}
 	static public String getSalt() {if (u==null) init(); return u.salt;}
 	static public String getSendGridAPIKey() {if (u==null) init(); return u.sendGridAPIKey;}
+	static public String getGPTModel() {if (u==null) init(); return u.gptModel;}
 	static public String getPayPalClientId(String serverName) {
 		if (u==null) init();
 		if (serverName.contains("localhost")) return u.payPalSandboxClientId;
