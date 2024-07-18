@@ -202,8 +202,8 @@ public class Question implements Serializable, Cloneable {
 	
 	String getExplanation() {
 		StringBuffer buf = new StringBuffer();
-		if (explanation != null && !explanation.isEmpty()) buf.append(explanation);
-		else {
+		//if (explanation != null && !explanation.isEmpty()) buf.append(explanation);
+		//else {
 			try {
 				BufferedReader reader = null;
 				JsonObject api_request = new JsonObject();  // these are used to score essay questions using ChatGPT
@@ -214,7 +214,11 @@ public class Question implements Serializable, Cloneable {
 				JsonArray messages = new JsonArray();
 				JsonObject m1 = new JsonObject();  // api request message
 				m1.addProperty("role", "system");
-				m1.addProperty("content","You are a tutor assisting a college student taking General Chemistry. ");
+				m1.addProperty("content","You are a tutor assisting a college student taking General Chemistry.\n"
+						+ "Display your response in LaTeX. LaTex math mode specific delimiters as following\n"
+						+ "inline math mode : `\\(` and `\\)`\n"
+						+ "display math mode: `\\[` and `\\]`\n"
+						+ "");
 				JsonObject m2 = new JsonObject();
 				m2.addProperty("role", "user");
 				m2.addProperty("content","Briefly explain why\n" + getCorrectAnswer() + "\n"
@@ -239,12 +243,13 @@ public class Question implements Serializable, Cloneable {
 				JsonObject api_response = JsonParser.parseReader(reader).getAsJsonObject();
 				reader.close();
 				this.explanation = api_response.get("choices").getAsJsonArray().get(0).getAsJsonObject().get("message").getAsJsonObject().get("content").getAsString();
+				
 				if (!this.requiresParser()) ofy().save().entity(this);
-				buf.append(explanation.replace("\\[","\\\\[").replace("\\]","\\\\]").replace("\\(","\\\\(").replace("\\)","\\\\)"));
+				buf.append(explanation);
 			} catch (Exception e) {
 				buf.append("<br/>Sorry, Sage was unable to comment. " + (e.getMessage()==null?e.toString():e.toString() + ":" + e.getMessage()) + "<p>");
 			}
-		}
+		//}
 		return buf.toString();
 	}
 
@@ -593,7 +598,6 @@ public class Question implements Serializable, Cloneable {
 		// correct fill-in-word answers is presented, and choices are not scrambled
 		// showDetails enables display of Solution to numeric problems (default = true)
 		StringBuffer buf = new StringBuffer("\n<a name=" + this.id + "></a>\n");
-		buf.append("<script src='https://cdn.jsdelivr.net/npm/marked/marked.min.js'></script>\n");
 		buf.append("<script src='https://polyfill.io/v3/polyfill.min.js?features=es6'></script>\n"
 				+ "<script id='MathJax-script' async src='https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js'></script>\n");
 		
@@ -678,12 +682,6 @@ public class Question implements Serializable, Cloneable {
 			buf.append("<span style='color:#990000;font-size:small;'>(800 characters max):</span><br/>");
 			break;
 		}
-		buf.append("<script src='https://cdn.jsdelivr.net/npm/marked/marked.min.js'></script>"
-				+ "<script>\n"
-				+ "let s = document.getElementById('sage_says');"
-				+ "if (s != null) s.innerHTML = marked.parse(s.innerHTML);"
-				+ "</script>");
-		
 		buf.append("<br/>");
 		if (showWork != null && !showWork.isEmpty()) buf.append("<b>Student work:</b><br/><div style='border-style: solid; border-width: thin; white-space: pre-wrap;'>" + showWork + "</div>");	
 		if (studentAnswer==null || studentAnswer.isEmpty()) buf.append("<b>No answer was submitted for this question item.</b><p></p>");
