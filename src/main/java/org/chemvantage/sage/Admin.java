@@ -50,7 +50,7 @@ public class Admin extends HttpServlet {
 		buf.append("<h1>Admin Page</h1>");
 		
 		buf.append("<h2>Users</h2>"
-				+ ofy().load().type(User.class).count() + " users (" + ofy().load().type(User.class).filter("expired",new Date()).count() + " expired)<br/>"
+				+ ofy().load().type(User.class).count() + " users (" + ofy().load().type(User.class).filter("expired <",new Date()).count() + " expired)<br/>"
 				+ ofy().load().type(Score.class).count() + " scores<br/>");
 		
 		if (showGraph) {
