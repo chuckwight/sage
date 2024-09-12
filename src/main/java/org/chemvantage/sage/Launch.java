@@ -160,7 +160,7 @@ public class Launch extends HttpServlet {
 				}
 				debug.append("a");
 				
-				int captchaScore = Math.round(createAssessment(gRecaptchaToken,"request_login_token"));
+				int captchaScore = 0; //Math.round(createAssessment(gRecaptchaToken,"request_login_token"));
 				debug.append("b");
 				
 				String email = request.getParameter("Email").trim().toLowerCase();
