@@ -51,13 +51,13 @@ public class Sage extends HttpServlet {
 				out.println(start(user));
 			} else {
 				boolean help = Boolean.parseBoolean(request.getParameter("Help"));
-				int parameter = 0;
-				if (request.getParameter("p") != null) parameter = Integer.parseInt(request.getParameter("p"));
+				long p = 0;
+				if (request.getParameter("p") != null) p = Long.parseLong(request.getParameter("p"));
 				if (help && !s.gotHelp) {
 					s.gotHelp = true;
 					ofy().save().entity(s).now();
 				}
-				out.println(poseQuestion(s,help,parameter));
+				out.println(poseQuestion(s,help,p));
 			}
 		} catch (Exception e) {
 			out.println(Launch.errorPage(e));
@@ -72,11 +72,17 @@ public class Sage extends HttpServlet {
 
 		User user = getFromCookie(request, response);
 		if (user == null) response.sendRedirect("/");
-
+		
+		StringBuffer debug = new StringBuffer("Debug: ");
+		
+		try {
+			
 		String userRequest = request.getParameter("UserRequest");
 		if (userRequest == null) userRequest = "";
-
+		debug.append("1");
+		
 		Score s = getScore(user);
+		debug.append("2");
 		
 		switch (userRequest) {
 		case "Ask Sage":
@@ -97,19 +103,25 @@ public class Sage extends HttpServlet {
 						+ Util.foot);
 			}
 			break;
-		default:
-			try {
-				JsonObject questionScore = scoreQuestion(s,request);
-				if (questionScore == null) {
-					doGet(request,response);
-					return;
-				}
-				boolean level_up = s.update(questionScore);
-				ofy().save().entity(s).now();
-				out.println(printScore(questionScore,s,level_up));
+		case "Score This Response":  
+			try {			
+				out.println(printScore(request,s));
 			} catch (Exception e) {
-				response.sendRedirect("/sage");
+				out.println(e.getMessage()==null?e.toString():e.getMessage());
 			}
+			break;
+		case "Show Full Solution":
+			try {	
+				debug.append("3");
+				out.println(printSolution(request,s));
+			} catch (Exception e) {
+				out.println(e.getMessage()==null?e.toString():e.getMessage());
+			}
+			break;
+		default: response.sendError(400);
+		}
+		} catch (Exception e) {
+			out.println(e.getMessage()==null?e.toString():e.getMessage() + "\n" + debug.toString());
 		}
 	}
 
@@ -352,7 +364,7 @@ public class Sage extends HttpServlet {
 		return studentAnswer;
 	}
 
-	static String poseQuestion(Score s, boolean help, int p) throws Exception {
+	static String poseQuestion(Score s, boolean help, long p) throws Exception {
 		StringBuffer buf = new StringBuffer(Util.head);
 		try {
 			if (conceptMap == null) refreshConcepts();
@@ -363,7 +375,7 @@ public class Sage extends HttpServlet {
 				ofy().save().entity(s);
 				q = ofy().load().type(Question.class).id(s.questionId).now();
 			}
-			if (p==0) p = new Random().nextInt();
+			if (p == 0L) p = new Random().nextLong(Long. MAX_VALUE);
 			q.setParameters(p);
 	
 			buf.append("<h1>" + c.title + "</h1>");
@@ -416,6 +428,7 @@ public class Sage extends HttpServlet {
 			buf.append("<form method=post style='max-width:800px;' onsubmit='waitForScore();' >"
 					+ "<input type=hidden name=QuestionId value='" + q.id + "' />"
 					+ "<input type=hidden name=Parameter value='" + p + "' />"
+					+ "<input type=hidden name=UserRequest value='Score This Response' />"
 					+ q.print()
 					+ "<input id='sub" + q.id + "' type=submit class='btn' />"
 					+ "</form><p>");
@@ -434,106 +447,34 @@ public class Sage extends HttpServlet {
 		return buf.toString() + Util.foot;	
 	}
 
-	static String printScore(JsonObject questionScore, Score s, boolean level_up) throws Exception {
+	static String printScore(HttpServletRequest request, Score s) throws Exception {
 		// Prepare a section that allows the user to ask Sage a question
 		if (conceptList==null) refreshConcepts();
 		User user = ofy().load().key(s.owner).now();
 		String topic = conceptList.get(conceptList.indexOf(conceptMap.get(user.conceptId))).title;
-		
+
 		StringBuffer buf = new StringBuffer(Util.head);
-		try {
-		buf.append(questionScore.get("details").getAsString());
-		if (s.score == 100) {  // move the user to the next chapter or concept
-			buf.append("<h2>Your score is 100%</h2>");
-			if (finishedChapter(s)) {
-				Chapter ch = ofy().load().type(Chapter.class).id(conceptMap.get(s.conceptId).chapterId).now();
-				buf.append("<b>You have completed Chapter " + ch.chapterNumber + ". " + ch.title + "</b>");
-				buf.append("<ul>");
-				for (Concept c : conceptList) if (c.chapterId != null && c.chapterId.equals(ch.id)) buf.append("<li>" + c.title + "</li>");;
-				buf.append("</ul>");
-				Chapter nextChapter = ofy().load().type(Chapter.class).filter("chapterNumber",ch.chapterNumber+1).first().now();
-				if (nextChapter == null) buf.append("<h1>Congratulations, you finished!</h1>");
-				else {
-					buf.append(askAQuestion(topic,Nonce.getHexString()));
-					buf.append("<br/>The next chapter is: <b>" + nextChapter.title + "</b>.<br/>");
-				}
-			} else {  // concept was completed
-				buf.append("You have mastered the concept: <b>" + topic +"</b></br/>");
-				// Calculate the number of concepts completed for this chapter
-				List<Long> chapterConceptIds = new ArrayList<Long>();
-				for (Concept c : conceptList) 
-					if (c.chapterId != null && c.chapterId.equals(conceptMap.get(s.conceptId).chapterId)) 
-						chapterConceptIds.add(c.id);
-				int nChapterScores = ofy().load().type(Score.class).parent(s.owner).ids(chapterConceptIds).size();
-				buf.append("You have completed " + nChapterScores + " out of " + chapterConceptIds.size() + " concepts for this chapter.<p>");
-				buf.append(askAQuestion(topic,Nonce.getHexString()));
-			}
-			// Retrieve the next concept in the list and update the user
-			int conceptIndex = conceptList.indexOf(conceptMap.get(user.conceptId));
-			while (ofy().load().type(Score.class).parent(s.owner).id(conceptList.get(conceptIndex+1).id).now()!=null) conceptIndex++;
-			user.conceptId = conceptList.get(conceptIndex+1).id;
-			ofy().save().entity(user).now();
-			buf.append("The next concept is: <b>" + conceptList.get(conceptIndex+1).title + "</b>&nbsp;");
-		} else if (level_up) {
-			buf.append("<h3>You have moved up to Level " + (s.score/20 + 1) +".</h3>"
-					+ "<b>Your current score on this concept is " + s.score + "%.</b>&nbsp;");
-			if (s.score >= 60 && s.score < 80) buf.append("<p>" + askAQuestion(topic,Nonce.getHexString()) + "Otherwise...");
-		} else {
-			buf.append("<p><b>Your current score on this concept is " + s.score + "%.</b>&nbsp;");
-		}
-		// print a button to continue
-		buf.append("<a class=btn role=button href='/sage'>Continue</a><p>");
-		} catch (Exception e) {
-			buf.append("<p>" + e.getMessage()==null?e.toString():e.getMessage());
-		}
-		return buf.toString() + Util.foot;
 		
-	}
-
-	static String printSolution(Question q, String studentAnswer,JsonObject api_score) throws Exception {
-		StringBuffer buf = new StringBuffer();
-		buf.append("<div id=solution style='display:none'>");
-		switch (q.getQuestionType()) {
-		case 6:  // five-star rating
-			buf.append("Your rating has been recorded, thank you.");
-		case 7:  // short_essay
-			buf.append(api_score.get("feedback") + "<p>");
-			break;
-		default: // just print the solution
-			buf.append(q.printAllToStudents(studentAnswer) + "<br/>");
-		}	
-		buf.append("</div>\n");			
-		buf.append("<script src='/js/report_problem.js'></script>");
-		return buf.toString();
-	}
-
-	static void refreshConcepts() {
-		conceptList = ofy().load().type(Concept.class).order("orderBy").list();
-		conceptMap = new HashMap<Long,Concept>();
-		for (Concept c : conceptList) conceptMap.put(c.id, c);
-	}
-	
-	static JsonObject scoreQuestion(Score s, HttpServletRequest request) throws Exception {
-		/*
-		 * This method scores the question and returns a JSON containing
-		 *   rawScore - 0, 1 or 2 meaning incorrect, partially correct, correct
-		 *   showMe - a more detailed response provided to the student
-		 */
-		JsonObject questionScore = new JsonObject();
 		int rawScore = 0;  // result is 0, 1 or 2. Tne partial score 1 is for wrong sig figs.
-		StringBuffer details = new StringBuffer();  // includes correct solution or explanation of partial score
 		
 		Long questionId = Long.parseLong(request.getParameter("QuestionId"));
 		if (!questionId.equals(s.questionId)) throw new Exception("Wrong question is being scored.");
 		
-		String studentAnswer = orderResponses(request.getParameterValues(Long.toString(questionId)));
-		if (studentAnswer.isEmpty()) return null;
+		String[] responses = request.getParameterValues(Long.toString(questionId));
+		String studentAnswer = orderResponses(responses);
+		if (studentAnswer == null || studentAnswer.isEmpty()) return null;
 		
 		Question q = ofy().load().type(Question.class).id(questionId).safe();
-		q.setParameters(Integer.parseInt(request.getParameter("Parameter")));
+		long p = 0L;
+		if (q.requiresParser()) {
+			p = Long.parseLong(request.getParameter("Parameter"));
+			q.setParameters(p);
+		}
 		
+		// Construct a link that either reveals the static solution or submits a request to generate a full AI solution for parameterized questions
+		StringBuffer showMeLink = new StringBuffer("<div>");
+				
 		// Get the raw score for the student's answer
-		JsonObject api_score = null;
 		switch (q.getQuestionType()) {
 		case 1:
 		case 2:
@@ -541,111 +482,229 @@ public class Sage extends HttpServlet {
 		case 4:
 		case 5:
 			rawScore = q.isCorrect(studentAnswer)?2:q.agreesToRequiredPrecision(studentAnswer)?1:0;
+			if (q.requiresParser()) {  // offer a POST form to get an AI response
+				// include some javascript to change the submit button
+				showMeLink.append("<script>"
+						+ "function waitForScore() {\n"
+						+ " let b = document.getElementById('showFullSolution');\n"
+						+ " b.disabled = true;\n"
+						+ " b.value = 'Please wait a moment for Sage to respond.';\n"
+						+ "}\n"
+						+ "</script>");
+				showMeLink.append("<form method=post action=/sage onsubmit='waitForScore();'>"
+						+ "<input type=hidden name=QuestionId value=" + q.id + " />"
+						+ "<input type=hidden name=Parameter value=" + p + " />");
+				for (String r : responses) showMeLink.append("<input type=hidden name=" + q.id + " value='" + r + "' />");
+				showMeLink.append("<input type=hidden name=RawScore value=" + rawScore + " />"
+						+ "<input type=hidden name=UserRequest value='Show Full Solution' />"
+						+ "<input id=showFullSolution type=submit class=btn value='Show me' />"
+						+ "</form>");
+			} else {  // offer the static solution
+				showMeLink.append("<script>"
+						+ "function showSolution() {"
+						+ " document.getElementById('link').style.display='none';"
+						+ " document.getElementById('solution').style.display='inline';"
+						+ "}"
+						+ "</script>");
+				showMeLink.append("<div id=link><a href=# class=btn role=button onclick='showSolution();'>Show me</a></div>"
+						+ "<div id=solution style='display: none'>" 
+						+ q.printAllToStudents(studentAnswer) 
+						+ "</div>");
+			}
 			break;
 		case 6:  // Handle five-star rating response
-			rawScore = 2;  // full marks for submitting a response
+			try {
+				if (Integer.parseInt(studentAnswer) > 0) rawScore = 2;  // full marks for submitting a response
+			} catch (Exception e) {}
 			break;
 		case 7:  // New section for scoring essay questions with Chat GPT
-			if (studentAnswer.length()>800) studentAnswer = studentAnswer.substring(0,799);
-			JsonObject api_request = new JsonObject();  // these are used to score essay questions using ChatGPT
-			api_request.addProperty("model",Util.getGPTModel());
-			api_request.addProperty("max_tokens",200);
-			api_request.addProperty("temperature",0.2);
-			JsonObject m = new JsonObject();  // api request message
-			m.addProperty("role", "user");
-			String prompt = "Question: \"" + q.text +  "\"\n My response: \"" + studentAnswer + "\"\n "
-					+ "Using JSON format, give a score for my response (integer in the range 0 to 5) "
-					+ "and feedback for how to improve my response.";
-			m.addProperty("content", prompt);
-			JsonArray messages = new JsonArray();
-			messages.add(m);
-			api_request.add("messages", messages);
-			URL u = new URL("https://api.openai.com/v1/chat/completions");
-			HttpURLConnection uc = (HttpURLConnection) u.openConnection();
-			uc.setRequestMethod("POST");
-			uc.setDoInput(true);
-			uc.setDoOutput(true);
-			uc.setRequestProperty("Authorization", "Bearer " + Util.getOpenAIKey());
-			uc.setRequestProperty("Content-Type", "application/json");
-			uc.setRequestProperty("Accept", "application/json");
-			OutputStream os = uc.getOutputStream();
-			byte[] json_bytes = api_request.toString().getBytes("utf-8");
-			os.write(json_bytes, 0, json_bytes.length);           
-			os.close();
+			JsonObject api_score = scoreEssayQuestion(q.text,studentAnswer);  // these are used to score essay questions using ChatGPT
+			rawScore = api_score.get("score").getAsInt()/2; 	// scale 0-2
+			showMeLink.append(api_score.get("feedback").getAsString());  // displays feedback in lieu of link
+			break;
+		default: throw new Exception("Unable to determine question type");
+		}
+
+		showMeLink.append("</div>");
+		
+		// Update and save the Score object
+		boolean level_up = s.update(rawScore);
+		ofy().save().entity(s);  // asynchronous save takes a second or 2; should be OK
+		
+		try {
+			if (q.getQuestionType() == 6) {
+				buf.append(rawScore==2?"<h1>Thank you for your rating.</h1><b>You received full credit for this question.</b>":"<h1>No rating was submitted.</h1><b>You did not receive credit for this question.</b>");
+			} else {
+				switch (rawScore) {  // 0, 1 or 2
+				case 2:  // correct answer
+					buf.append("<h1>Congratulations!</h1>"
+							+ "<b>Your answer is correct. </b><IMG SRC=/images/checkmark.gif ALT='Check mark' align=bottom /><p>"
+							+ "<div style='width:800px;display:flex;align-items:center;'>"
+							
+							+ showMeLink
+							+ "<img id=polly src='/images/parrot2.png' alt='Parrot character' style='margin-left:20px;'>"
+							+ "</div>");
+					break;
+				case 1: // partial credit			
+					buf.append("<h1>Your answer is partially correct</h1>"
+							+ "<b>You received half credit.</b><p>"
+							+ "<div style='width:800px;display:flex; align-items:center;'>"
+							+ showMeLink
+							+ "<img id=polly src='/images/parrot1.png' alt='Parrot character' style='margin-left:20px;'>"
+							+ "</div>");
+					break;
+				case 0: // wrong answer
+					buf.append("<h1>Sorry, your answer is not correct.<IMG SRC=/images/xmark.png ALT='X mark' align=middle></h1>"
+							+ "<div style='width:800px;display:flex; align-items:center;'>"
+							+ showMeLink
+							+ "<img id=polly src='/images/parrot0.png' alt='Parrot character' style='margin-left:20px;'>\n"
+							+ "</div>");
+					break;
+				}
+			}
 			
-			BufferedReader reader = null;
-			reader = new BufferedReader(new InputStreamReader(uc.getInputStream()));
-			JsonObject api_response = JsonParser.parseReader(reader).getAsJsonObject();
-			reader.close();
-			
-			// get the ChatGPT score from the response:
-			try {
-				String content = api_response.get("choices").getAsJsonArray().get(0).getAsJsonObject().get("message").getAsJsonObject().get("content").getAsString();
-				api_score = JsonParser.parseString(content).getAsJsonObject();
-				rawScore = api_score.get("score").getAsInt()/2; 	// scale 0-2
-			} catch (Exception e) {}
+			if (s.score == 100) {  // move the user to the next chapter or concept
+				buf.append("<h2>Your score is 100%</h2>");
+				if (finishedChapter(s)) {
+					Chapter ch = ofy().load().type(Chapter.class).id(conceptMap.get(s.conceptId).chapterId).now();
+					buf.append("<b>You have completed Chapter " + ch.chapterNumber + ". " + ch.title + "</b>");
+					buf.append("<ul>");
+					for (Concept c : conceptList) if (c.chapterId != null && c.chapterId.equals(ch.id)) buf.append("<li>" + c.title + "</li>");;
+					buf.append("</ul>");
+					Chapter nextChapter = ofy().load().type(Chapter.class).filter("chapterNumber",ch.chapterNumber+1).first().now();
+					if (nextChapter == null) buf.append("<h1>Congratulations, you finished!</h1>");
+					else {
+						buf.append(askAQuestion(topic,Nonce.getHexString()));
+						buf.append("<br/>The next chapter is: <b>" + nextChapter.title + "</b>.<br/>");
+					}
+				} else {  // concept was completed
+					buf.append("You have mastered the concept: <b>" + topic +"</b></br/>");
+					// Calculate the number of concepts completed for this chapter
+					List<Long> chapterConceptIds = new ArrayList<Long>();
+					for (Concept c : conceptList) 
+						if (c.chapterId != null && c.chapterId.equals(conceptMap.get(s.conceptId).chapterId)) 
+							chapterConceptIds.add(c.id);
+					int nChapterScores = ofy().load().type(Score.class).parent(s.owner).ids(chapterConceptIds).size();
+					buf.append("You have completed " + nChapterScores + " out of " + chapterConceptIds.size() + " concepts for this chapter.<p>");
+					buf.append(askAQuestion(topic,Nonce.getHexString()));
+				}
+				// Retrieve the next concept in the list and update the user
+				int conceptIndex = conceptList.indexOf(conceptMap.get(user.conceptId));
+				while (ofy().load().type(Score.class).parent(s.owner).id(conceptList.get(conceptIndex+1).id).now()!=null) conceptIndex++;
+				user.conceptId = conceptList.get(conceptIndex+1).id;
+				ofy().save().entity(user).now();
+				buf.append("The next concept is: <b>" + conceptList.get(conceptIndex+1).title + "</b>&nbsp;");
+			} else if (level_up) {
+				buf.append("<h3>You have moved up to Level " + (s.score/20 + 1) +".</h3>"
+						+ "<b>Your current score on this concept is " + s.score + "%.</b>&nbsp;");
+				if (s.score >= 60 && s.score < 80) buf.append("<p>" + askAQuestion(topic,Nonce.getHexString()) + "Otherwise...");
+			} else {
+				buf.append("<p><b>Your current score on this concept is " + s.score + "%.</b>&nbsp;");
+			}
+			// print a button to continue
+			buf.append("<a class=btn role=button href='/sage'>Continue</a><p>");
+		} catch (Exception e) {
+			buf.append("<p>" + e.getMessage()==null?e.toString():e.getMessage());
+		}
+		return buf.toString() + Util.foot;
+	}
+
+	static String printSolution(HttpServletRequest request, Score s) throws Exception {
+		StringBuffer buf = new StringBuffer(Util.head);
+		int rawScore = Integer.parseInt(request.getParameter("RawScore"));
+		switch (rawScore) {
+		case 2:
+			buf.append("<h1>Congratulations!</h1>"
+					+ "<b>Your answer is correct. </b><IMG SRC=/images/checkmark.gif ALT='Check mark' align=bottom /><p>");
+			break;
+		case 1:
+			buf.append("<h1>Your answer is partially correct</h1>"
+					+ "<b>You received half credit.</b><p>");
+			break;
+		case 0:
+			buf.append("<h1>Sorry, your answer is not correct.<IMG SRC=/images/xmark.png ALT='X mark' align=middle></h1>");
 			break;
 		default:
 		}
-		
-		// Create a header section for results
-		int questionType = q.getQuestionType();
-		String showMeLink = "<a href=# "
-				+ " onClick=\""
-				+ "   document.getElementById('solution').style='display:inline';"
-				+ "   document.getElementById('result').style='display:none';"
-				+ "   document.getElementById('polly').style='display:none';\">"
-				+ "Show me the solution"
-				+ "</a>";
-		
-		if (questionType==6) details.append("<h1>Thank you for your rating.</h1>");
-		else {
-			// get the details for the student
-			switch (rawScore) {
-			case 2:  // correct answer
-	
-				details.append("<h1>Congratulations!</h1>"
-						+ "<div style='width:800px;display:flex;align-items:center;'>"
-						+ " <div id=result>"
-						+ "  <b>Your answer is correct. </b><IMG SRC=/images/checkmark.gif ALT='Check mark' align=bottom /><p>"
-						+ showMeLink
-						+ " </div>"
-						+ printSolution(q,studentAnswer,api_score)
-						+ "<img id=polly src='/images/parrot2.png' alt='Parrot character' style='margin-left:20px;'>"
-						+ "</div>");
-				break;
-			case 1: // partial credit			
-				details.append("<h1>Your answer is partially correct</h1>"
-						+ "<div style='width:800px;display:flex; align-items:center;'>"
-						+ " <div id=result>"
-						+ "  <b>You received half credit.</b><p>"
-						+ showMeLink
-						+ " </div>"
-						+ printSolution(q,studentAnswer,api_score)
-						+ "<img id=polly src='/images/parrot1.png' alt='Parrot character' style='margin-left:20px;'>"
-						+ "</div>");
-				break;
-			case 0: // wrong answer
-				details.append("<h1>Sorry, your answer is not correct.<IMG SRC=/images/xmark.png ALT='X mark' align=middle></h1>"
-						+ "<div style='width:800px;display:flex; align-items:center;'>"
-						+ " <div id=result><b>Don't give up!</b><br/>\n"
-						+ "  If you feel frustrated, take a break. You can read more about this concept in a "
-						+ "  <a href=https://openstax.org/details/books/chemistry-2e target=_openstax>free online chemistry textbook</a> "
-						+ "  published by OpenStax. When you're refreshed, you can come back and continue your progress here.<p>\n"
-						+ showMeLink
-						+ " </div>"
-						+ printSolution(q,studentAnswer,api_score)
-						+ "<img id=polly src='/images/parrot0.png' alt='Parrot character' style='margin-left:20px;'>\n"
-						+ "</div>");
-				break;
-			}
+		long questionId = Long.parseLong(request.getParameter("QuestionId"));
+		long p = Long.parseLong(request.getParameter("Parameter"));
+		String[] responses = request.getParameterValues(Long.toString(questionId));
+		String studentAnswer = orderResponses(responses);
+		Question q = ofy().load().type(Question.class).id(questionId).safe();
+		q.setParameters(p);
+		buf.append("<div style='width:800px;display:flex;align-items:center;'>"
+				+ "<div style='width:600px'>" + q.printAllToStudents(studentAnswer) + "</div><p>");
+		switch (rawScore) {
+		case 2:
+			buf.append("<img id=polly src='/images/parrot2.png' alt='Parrot character' style='margin-left:20px;'>");
+			break;
+		case 1:
+			buf.append("<img id=polly src='/images/parrot1.png' alt='Parrot character' style='margin-left:20px;'>");
+			break;
+		case 0:
+			buf.append("<img id=polly src='/images/parrot0.png' alt='Parrot character' style='margin-left:20px;'>");
+			break;
 		}
-		questionScore.addProperty("rawScore", rawScore);
-		questionScore.addProperty("details", details.toString());
-	
-		return questionScore;
+		buf.append("</div>");			
+		
+		// print a button to continue
+		buf.append("<a class=btn role=button href='/sage'>Continue</a><p>");
+		return buf.toString() + Util.foot;
 	}
 
+	static void refreshConcepts() {
+		conceptList = ofy().load().type(Concept.class).order("orderBy").list();
+		conceptMap = new HashMap<Long,Concept>();
+		for (Concept c : conceptList) conceptMap.put(c.id, c);
+	}
+
+	static JsonObject scoreEssayQuestion(String questionText, String studentAnswer) throws Exception {
+		if (studentAnswer.length()>800) studentAnswer = studentAnswer.substring(0,799);
+		JsonObject api_request = new JsonObject();  // these are used to score essay questions using ChatGPT
+		api_request.addProperty("model",Util.getGPTModel());
+		api_request.addProperty("max_tokens",200);
+		api_request.addProperty("temperature",0.2);
+		JsonObject m = new JsonObject();  // api request message
+		m.addProperty("role", "user");
+		String prompt = "Question: \"" + questionText +  "\"\n My response: \"" + studentAnswer + "\"\n "
+				+ "Using JSON format, give a score for my response (integer in the range 0 to 5) "
+				+ "and feedback for how to improve my response.";
+		m.addProperty("content", prompt);
+		JsonArray messages = new JsonArray();
+		messages.add(m);
+		api_request.add("messages", messages);
+		URL u = new URL("https://api.openai.com/v1/chat/completions");
+		HttpURLConnection uc = (HttpURLConnection) u.openConnection();
+		uc.setRequestMethod("POST");
+		uc.setDoInput(true);
+		uc.setDoOutput(true);
+		uc.setRequestProperty("Authorization", "Bearer " + Util.getOpenAIKey());
+		uc.setRequestProperty("Content-Type", "application/json");
+		uc.setRequestProperty("Accept", "application/json");
+		OutputStream os = uc.getOutputStream();
+		byte[] json_bytes = api_request.toString().getBytes("utf-8");
+		os.write(json_bytes, 0, json_bytes.length);           
+		os.close();
+		
+		BufferedReader reader = null;
+		reader = new BufferedReader(new InputStreamReader(uc.getInputStream()));
+		JsonObject api_response = JsonParser.parseReader(reader).getAsJsonObject();
+		reader.close();
+		
+		// get the ChatGPT score from the response:
+		JsonObject api_score = null;
+		try {
+			String content = api_response.get("choices").getAsJsonArray().get(0).getAsJsonObject().get("message").getAsJsonObject().get("content").getAsString();
+			api_score = JsonParser.parseString(content).getAsJsonObject();
+			return api_score;
+		} catch (Exception e) {
+			api_score = new JsonObject();
+			api_score.addProperty("score", 0);
+			api_score.addProperty("feedback", "Sorry, an error occurred: " + e.getMessage()==null?e.toString():e.getMessage());
+		}
+		return api_score;
+	}
+	
 	static String start(User user) throws Exception {
 		StringBuffer buf = new StringBuffer(Util.head);
 		try {

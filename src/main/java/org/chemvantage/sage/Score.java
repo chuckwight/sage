@@ -19,7 +19,6 @@ package org.chemvantage.sage;
 
 import static com.googlecode.objectify.ObjectifyService.key;
 
-import com.google.gson.JsonObject;
 import com.googlecode.objectify.Key;
 import com.googlecode.objectify.annotation.Entity;
 import com.googlecode.objectify.annotation.Id;
@@ -43,9 +42,8 @@ public class Score {    // this object represents a best score achieved by a use
 		this.conceptId = conceptId;
 	}
 	
-	boolean update(JsonObject questionScore) throws Exception {
+	boolean update(int rawScore) throws Exception {
 		int oldQuintileRank = score/20 + 1;
-		int rawScore = questionScore.get("rawScore").getAsInt();
 		int proposedScore = 0;  // range 0-100 percent
 		/*
 		 * Apply this scoring algorithm to update the user's Score on the current Concept:

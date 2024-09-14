@@ -198,7 +198,7 @@ public class Question implements Serializable, Cloneable {
 
 		Random rand = new Random();
 		// use seed=-1 for randomly fluctuating parameters, non-zero for deterministic pseudo-random
-		if (seed != -1) rand.setSeed((long)seed);
+		if (seed != -1L) rand.setSeed((long)seed);
 
 		char p = 'a';
 		while (p <= 'd') {
@@ -220,10 +220,10 @@ public class Question implements Serializable, Cloneable {
 	}
 	
 	String getExplanation() {
-		StringBuffer buf = new StringBuffer();
 		// if an explanation was stored previously 
 		if (!this.requiresParser() && this.explanation != null && !explanation.isEmpty()) return explanation;
 		// Otherwise, compute an explanation
+		StringBuffer buf = new StringBuffer();
 		try {
 			BufferedReader reader = null;
 			JsonObject api_request = new JsonObject();  // these are used to score essay questions using ChatGPT
@@ -267,9 +267,8 @@ public class Question implements Serializable, Cloneable {
 			if (!this.requiresParser()) ofy().save().entity(this);
 			buf.append(explanation);
 		} catch (Exception e) {
-			buf.append("<br/>Sorry, Sage was unable to comment. " + (e.getMessage()==null?e.toString():e.toString() + ":" + e.getMessage()) + "<p>");
+			buf.append("<br/>Sorry, Sage was unable to elaborate. " + (e.getMessage()==null?e.toString():e.toString() + ":" + e.getMessage()) + "<p>");
 		}
-
 		return buf.toString();
 	}
 
@@ -633,7 +632,7 @@ public class Question implements Serializable, Cloneable {
 						+ (showDetails && correctAnswer.indexOf(choice)>=0?"</B>":"</FONT>") + "<br/>");
 				choice++;
 			}
-			buf.append("<br/>Sage says: <div id=sage_says>" + getExplanation() + "</div>\n");
+			buf.append("<br/><b>Sage explains:</b> <div id=sage_says>" + getExplanation() + "</div>\n");
 			break;
 		case 2: // True/False
 			buf.append(text + "<br/>");
@@ -645,7 +644,7 @@ public class Question implements Serializable, Cloneable {
 					+ (showDetails && correctAnswer.equals("false")?"<B>False</B>":"<FONT COLOR=#888888>False</FONT>")
 					+ "</LI>");
 			buf.append("</UL>");
-			buf.append("<br/>Sage says: <div id=sage_says>" + getExplanation() + "</div>\n");
+			buf.append("<br/><b>Sage explains:</b> <div id=sage_says>" + getExplanation() + "</div>\n");
 			break;
 		case 3: // Select Multiple
 			buf.append(text + "<br/>");
@@ -657,7 +656,7 @@ public class Question implements Serializable, Cloneable {
 						+ (showDetails && correctAnswer.indexOf(choice)>=0?"</B>":"</FONT>") + "<br/>");
 				choice++;
 			}
-			buf.append("<br/>Sage says: <div id=sage_says>" + getExplanation() + "</div>\n");
+			buf.append("<br/><b>Sage explains:</b> <div id=sage_says>" + getExplanation() + "</div>\n");
 			break;
 		case 4: // Fill-in-the-Word
 			buf.append(text + "<br/>");
@@ -667,7 +666,7 @@ public class Question implements Serializable, Cloneable {
 					+ (showDetails?"<b>" + quot2html(answers[0]) + "</b>":"&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;")
 					+ "</span>");
 			if (tag.length() > 0) buf.append("&nbsp;" + tag + "<br/>");
-			buf.append("<br/>Sage says: <div id=sage_says>" + getExplanation() + "</div>\n");
+			buf.append("<br/><b>Sage explains:</b> <div id=sage_says>" + getExplanation() + "</div>\n");
 			break;
 		case 5: // Numeric Answer
 			buf.append(parseString(text) + "<br/>");
@@ -683,7 +682,7 @@ public class Question implements Serializable, Cloneable {
 					+ (showDetails?"<b>" + getCorrectAnswer() + "</b>":"&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;")
 					+ "</span>");
 			buf.append("&nbsp;" + parseString(tag) + "<br/>\n");
-			buf.append("<br/>Sage says: <div id=sage_says>" + getExplanation() + "</div>\n");
+			buf.append("<br/><b>Sage explains:</b> <div id=sage_says>" + getExplanation() + "</div>\n");
 			break;        
 		case 6:
 			buf.append(parseString(text) + "<br/>");
