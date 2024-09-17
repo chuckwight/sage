@@ -42,25 +42,51 @@ public class Sage extends HttpServlet {
 		PrintWriter out = response.getWriter();
 		response.setContentType("text/html");
 		
-		User user = getFromCookie(request, response);
-		if (user == null) response.sendRedirect("/");
-		
+		StringBuffer debug = new StringBuffer("Debug: ");
 		try {
+			User user = getFromCookie(request, response);
+			if (user == null) {
+				response.sendRedirect("/");
+				return;
+			}
+			debug.append("1");
+			
+			try {
+				user.conceptId = Long.parseLong(request.getParameter("ConceptId"));
+			} catch (Exception e) {}
+			debug.append("2");
+			
 			Score s = getScore(user);
-			if (s.questionId == null) {  // user is starting a new Concept
-				out.println(start(user));
-			} else {
-				boolean help = Boolean.parseBoolean(request.getParameter("Help"));
-				long p = 0;
-				if (request.getParameter("p") != null) p = Long.parseLong(request.getParameter("p"));
-				if (help && !s.gotHelp) {
-					s.gotHelp = true;
-					ofy().save().entity(s).now();
+			debug.append(s.toString());
+			
+			String userRequest = request.getParameter("UserRequest");
+			if (userRequest==null) userRequest = "";
+			
+			switch (userRequest) {
+			case "menu":
+				debug.append("a");
+				out.println(menuPage(user,s));
+				break;
+			default:	
+				debug.append("b");
+				if (s.questionId == null) {  // user is starting a new Concept
+					debug.append("c");
+					out.println(start(user,s));
+				} else {
+					debug.append("d");
+					boolean help = Boolean.parseBoolean(request.getParameter("Help"));
+					long p = 0;
+					if (request.getParameter("p") != null) p = Long.parseLong(request.getParameter("p"));
+					if (help && !s.gotHelp) {
+						s.gotHelp = true;
+						ofy().save().entity(s).now();
+					}
+					debug.append("e");
+					out.println(poseQuestion(s,help,p));
 				}
-				out.println(poseQuestion(s,help,p));
 			}
 		} catch (Exception e) {
-			out.println(Launch.errorPage(e));
+			out.println(Launch.errorPage(e) + "<br/>" + debug.toString());
 		}
 	}
 	
@@ -71,7 +97,10 @@ public class Sage extends HttpServlet {
 		response.setContentType("text/html");
 
 		User user = getFromCookie(request, response);
-		if (user == null) response.sendRedirect("/");
+		if (user == null) {
+			response.sendRedirect("/");
+			return;
+		}
 		
 		StringBuffer debug = new StringBuffer("Debug: ");
 		
@@ -356,6 +385,103 @@ public class Sage extends HttpServlet {
 		}
 	}
 
+	static String menuPage (User user, Score currentScore) {
+		StringBuffer buf = new StringBuffer(Util.head);
+		buf.append("<h1>Select a Key Concept</h1>"
+				+ "Click on any numbered chapter to view the associated key concepts. Then click on a key concept to start the tutorial. "
+				+ "You may start anywhere, but Sage has indicated a good starting point based on your current scores.<p>");
+		try {
+		if (conceptMap == null) refreshConcepts();
+		List<Key<Chapter>> chapterKeys = ofy().load().type(Chapter.class).order("chapterNumber").keys().list();
+		Map<Key<Chapter>,Chapter> chapters = ofy().load().keys(chapterKeys);
+		Map<Long,List<Long>> chapterMap = new HashMap<Long,List<Long>>();
+		for (Concept con : conceptList) {
+			if (con.chapterId == null) continue;
+			if (chapterMap.get(con.chapterId)==null) chapterMap.put(con.chapterId, new ArrayList<Long>());
+			chapterMap.get(con.chapterId).add(con.id);
+		}
+		
+		// make a HashMap of this user's Score entities
+		List<Score> userScores = ofy().load().type(Score.class).ancestor(user).list();
+		Map<Long,Score> userScoresMap = new HashMap<Long,Score>();
+		for (Score s : userScores) userScoresMap.put(s.conceptId, s);
+		
+		Long nextConceptId = currentScore.conceptId;
+		Concept nextConcept = conceptMap.get(nextConceptId);
+		int chapterNumber = 0;
+		
+		// Add style elements to menu
+		buf.append("<style>"
+				+ "ul {"
+				+ "  list-style-type: none;"
+				+ "}"
+				+ "#topUL {"
+				+ "  margin: 0;"
+				+ "  padding: 0;"
+				+ "}"
+				+ ".caret {"
+				+ "  -webkit-user-select: none; /* Safari 3.1+ */"
+				+ "  -moz-user-select: none; /* Firefox 2+ */"
+				+ "  -ms-user-select: none; /* IE 10+ */"
+				+ "  cursor: pointer;"
+				+ "  user-select: none;"
+				+ "}"
+				+ ".caret::before {"
+				+ "  content: '\\25B6';"
+				+ "  color: black;"
+				+ "  display: inline-block;"
+				+ "  margin-right: 6px;"
+				+ "}"
+				+ ".caret-down::before {"
+				+ "  -ms-transform: rotate(90deg); /* IE 9 */"
+				+ "  -webkit-transform: rotate(90deg); /* Safari */"
+				+ "  transform: rotate(90deg);"
+				+ "}"
+				+ ".nested {"
+				+ "  display: none;"
+				+ "}"
+				+ ".active {"
+				+ "  display: block;"
+				+ "}"
+				+ "</style>");
+		
+		// construct an unordered list of chapters with a nested inner list of related concepts
+		buf.append("<ul>");
+		for (Key<Chapter> chKey : chapterKeys) {  // outer loop
+			Chapter ch = chapters.get(chKey);
+			if (ch == null) continue;
+			chapterNumber++;
+			// construct inner nested list:
+			StringBuffer innerUL = new StringBuffer("<ul class=" + (ch.id.equals(nextConcept.chapterId)?"'active'":"'nested'") + ">\n");
+			boolean chapterCompleted = true;
+			for (Long conId : chapterMap.get(ch.id)) {
+				Score userScore = userScoresMap.get(conId);
+				if (userScore == null || userScore.score < 100) chapterCompleted = false;
+				innerUL.append("<li><a href=/sage?ConceptId=" + conId + ">" + conceptMap.get(conId).title + "</a>" + (userScore==null?"":" (" + userScore.score + "%)") + (conId.equals(nextConceptId)?"<span style='font-weight:bold;'> <mark>&#x21e6; Sage suggests that you start here</mark></span>":"") + "</li>\n");
+			}
+			innerUL.append("</ul>");
+			buf.append("<li><span class='caret'>" + chapterNumber + ". " + ch.title + (chapterCompleted?"<span style='color:red;font-weight:bold'> &#x2713;</span>":"") + "</span>"
+					+ innerUL.toString()
+					+ "</li>");
+		}
+		buf.append("</ul>");
+
+		buf.append("<script>"
+				+ "var toggler = document.getElementsByClassName('caret');"
+				+ "var i;"
+				+ "for (i = 0; i < toggler.length; i++) {"
+				+ "  toggler[i].addEventListener('click', function() {"
+				+ "    this.parentElement.querySelector('.nested').classList.toggle('active');"
+				+ "    this.classList.toggle('caret-down');"
+				+ "  });"
+				+ "}"
+				+ "</script>");		
+		} catch (Exception e) {
+			buf.append(e.getMessage());
+		}
+		return buf.toString() + Util.foot;
+	}
+
 	static String orderResponses(String[] answers) {
 		if (answers==null) return "";
 		Arrays.sort(answers);
@@ -415,10 +541,10 @@ public class Sage extends HttpServlet {
 						+ "</div>");
 				// include some javascript to change the submit button
 				buf.append("<script>"
-						+ "function waitForHelp() {\n"
-						+ " let a = document.getElementById('help');\n"
-						+ " a.innerHTML = 'Please wait a moment for Sage to answer.';\n"
-						+ "}\n"
+						+ "function waitForHelp() {"
+						+ " let a = document.getElementById('help');"
+						+ " a.innerHTML = 'Please wait a moment for Sage to answer.';"
+						+ "}"
 						+ "</script>");
 				}
 			
@@ -562,9 +688,10 @@ public class Sage extends HttpServlet {
 					break;
 				}
 			}
-			
+			boolean completed = false;
 			if (s.score == 100) {  // move the user to the next chapter or concept
 				buf.append("<h2>Your score is 100%</h2>");
+				completed = true;
 				if (finishedChapter(s)) {
 					Chapter ch = ofy().load().type(Chapter.class).id(conceptMap.get(s.conceptId).chapterId).now();
 					buf.append("<b>You have completed Chapter " + ch.chapterNumber + ". " + ch.title + "</b>");
@@ -602,7 +729,7 @@ public class Sage extends HttpServlet {
 				buf.append("<p><b>Your current score on this concept is " + s.score + "%.</b>&nbsp;");
 			}
 			// print a button to continue
-			buf.append("<a class=btn role=button href='/sage'>Continue</a><p>");
+			buf.append("<a class=btn role=button href='/sage" + (completed?"?UserRequest=menu":"") + "'>Continue</a><p>");
 		} catch (Exception e) {
 			buf.append("<p>" + e.getMessage()==null?e.toString():e.getMessage());
 		}
@@ -705,10 +832,9 @@ public class Sage extends HttpServlet {
 		return api_score;
 	}
 	
-	static String start(User user) throws Exception {
+	static String start(User user, Score s) throws Exception {
 		StringBuffer buf = new StringBuffer(Util.head);
 		try {
-			Score s = getScore(user);
 			user.updateConceptId(s.conceptId);
 			
 			if (conceptMap == null) refreshConcepts();

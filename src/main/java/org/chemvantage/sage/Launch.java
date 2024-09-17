@@ -177,7 +177,7 @@ public class Launch extends HttpServlet {
 				if (user != null && user.expires.after(now) && cookieUser != null && user.hashedId.equals(cookieUser.hashedId)) {  // returning user with active Cookie
 					debug.append("i");
 					launchCounters[COOKIE_LOGIN][captchaScore]++;
-					out.println(Sage.start(user));
+					out.println(Sage.start(user,Sage.getScore(user)));
 				} else { // no valid Cookie; send login link
 					debug.append("ii");
 					Util.sendEmail(null,email,"Sage Login Link", tokenMessage(createToken(hashedId),request.getRequestURL().toString()));
