@@ -354,7 +354,7 @@ public class Sage extends HttpServlet {
 		int[][] qSelCutoff = { {10,17,20,20},{4,14,18,20},{1,5,15,19},{0,2,6,16},{0,0,3,10} };
 		
 		Long currentQuestionId = s.questionId;  // don't duplicate this
-		int scoreQuintile = s.score/20;			// ranges from 0-4
+		int scoreQuintile = s.score==100?4:s.score/20;			// ranges from 0-4
 		int nConceptQuestions = ofy().load().type(Question.class).filter("conceptId",s.conceptId).count();
 		if (nConceptQuestions == 0) throw new Exception("Sorry, there are no questions for this Concept.");
 		
@@ -721,7 +721,7 @@ public class Sage extends HttpServlet {
 						buf.append("<br/>The next chapter is: <b>" + nextChapter.title + "</b>.<br/>");
 					}
 				} else {  // concept was completed
-					buf.append("You have mastered the concept: <b>" + topic +"</b> and earned 20 more tokens.</br/>");
+					buf.append("You have mastered the concept: <b>" + topic +"</b>" + (level_up?" and earned 20 more tokens":"") + ".</br/>");
 					buf.append("Your Sage account now has " + user.tokensRemaining() + " tokens.<br/>");
 					buf.append(askAQuestion(topic,Nonce.getHexString()));
 				}
@@ -785,7 +785,7 @@ public class Sage extends HttpServlet {
 		buf.append("</div>");			
 		
 		// print a button to continue
-		buf.append("<a class=btn role=button href='/sage'>Continue</a><p>");
+		buf.append("<a class=btn role=button href='/sage" + (s.score==100?"?UserRequest=menu":"") + "'>Continue</a><p>");
 		return buf.toString() + Util.foot;
 	}
 

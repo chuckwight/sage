@@ -44,6 +44,7 @@ public class Score {    // this object represents a best score achieved by a use
 	
 	boolean update(int rawScore) throws Exception {
 		int oldQuintileRank = score/20 + 1;
+		if (oldQuintileRank == 6) return false;
 		int proposedScore = 0;  // range 0-100 percent
 		/*
 		 * Apply this scoring algorithm to update the user's Score on the current Concept:
