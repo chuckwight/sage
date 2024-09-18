@@ -20,22 +20,24 @@ package org.chemvantage.sage;
 import static com.googlecode.objectify.ObjectifyService.ofy;
 
 import java.util.Date;
+import java.util.concurrent.TimeUnit;
 
 import com.googlecode.objectify.annotation.Entity;
 import com.googlecode.objectify.annotation.Id;
-import com.googlecode.objectify.annotation.Index;
 
 @Entity
 public class User {
 	@Id		String hashedId;
-	@Index	Date expires;	// end of subscription
-	Long	conceptId;
+			int tokens;
+			Date tokensUpdated;
+			Long conceptId;
 	
 		User() {}
 		
 		User(String hashedId) {
 			this.hashedId = hashedId;
-			this.expires = new Date(new Date().getTime() + 604800000L); // 1 week free trial
+			this.tokens = 100; // 100 free tokens to start
+			this.tokensUpdated = new Date();
 		}
 		
 		void updateConceptId(Long conceptId) {
@@ -43,5 +45,22 @@ public class User {
 				this.conceptId = conceptId;
 				ofy().save().entity(this).now();
 			}
+		}
+		
+		void addTokens(int nTokens) {
+			this.tokens += nTokens;
+			this.tokensUpdated = new Date();
+			ofy().save().entity(this).now();
+		}
+		
+		int tokensRemaining() {
+			Date now = new Date();
+			int hoursSinceUpdate = (int)TimeUnit.HOURS.convert(now.getTime() - tokensUpdated.getTime(),TimeUnit.MILLISECONDS);
+			int tokens = this.tokens - hoursSinceUpdate;
+			return tokens < 0?0:tokens;
+		}
+		
+		boolean expired() {
+			return tokensRemaining() == 0;
 		}
 }

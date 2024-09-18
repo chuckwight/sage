@@ -11,9 +11,7 @@ import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.text.SimpleDateFormat;
-import java.util.Calendar;
 import java.util.Date;
-import java.util.List;
 import java.util.Random;
 import java.util.TimeZone;
 
@@ -70,7 +68,7 @@ public class Launch extends HttpServlet {
 		String hashedId = request.getParameter("verify");
 		if (hashedId != null) {
 			User user = ofy().load().type(User.class).id(hashedId).now();
-			if (user != null && user.expires.after(new Date())) out.println("true");
+			if (user != null && user.expired()) out.println("true");
 			else response.setStatus(204);
 			return;
 		}
@@ -82,12 +80,12 @@ public class Launch extends HttpServlet {
 		try {  // token login
 			hashedId = validateToken(token);
 			User user = ofy().load().type(User.class).id(hashedId).now();
-			
-			Date now = new Date();
-			if (user == null) {  					// new user
+
+			if (user == null) {  	// new user
 				out.println(welcomePage(hashedId));
 			}
-			else if (user.expires.before(now)) {  	// subscription expired
+			else if (user.expired()) {  	// no tokens remaining
+				out.println(user.toString() + "<br/>" + hashedId + "<p>");
 				out.println(checkout(user, request.getRequestURL().toString()));
 			}
 			else { // continuing user: set a Cookie with the hashedId value
@@ -121,21 +119,14 @@ public class Launch extends HttpServlet {
 			switch (userRequest) {
 			case "Start":  //  new user agreed to terms - from welcomePage()
 				hashedId = validateToken(request.getParameter("token"));
-				user = new User(hashedId);
-				try {
-					user.conceptId = Long.parseLong(request.getParameter("ConceptId"));
-				} catch (Exception e) {
-					user.conceptId = ofy().load().type(Concept.class).order("orderBy").keys().first().now().getId();
-				}
-				ofy().save().entity(user).now();
-
 				Cookie cookie = new Cookie("hashedId", hashedId);
 				cookie.setSecure(true);
 				cookie.setHttpOnly(true);
 				cookie.setMaxAge(60 * 60); // 1 hour
 				response.addCookie(cookie);
-
-				response.sendRedirect("/sage");
+				user = new User(hashedId);
+				ofy().save().entity(user).now();
+				response.sendRedirect("/sage?UserRequest=menu");
 				return;
 			case "Complete Purchase":  // after PayPal payment - from checkout()
 				if (purchaseComplete(request)) {
@@ -172,12 +163,12 @@ public class Launch extends HttpServlet {
 				
 				hashedId = getHash(email);
 				user = ofy().load().type(User.class).id(hashedId).now();
-				Date now  = new Date();
 				User cookieUser = Sage.getFromCookie(request, response); // may be null
-				if (user != null && user.expires.after(now) && cookieUser != null && user.hashedId.equals(cookieUser.hashedId)) {  // returning user with active Cookie
+				if (user != null && !user.expired() && cookieUser != null && user.hashedId.equals(cookieUser.hashedId)) {  // returning user with active Cookie
 					debug.append("i");
 					launchCounters[COOKIE_LOGIN][captchaScore]++;
-					out.println(Sage.start(user,Sage.getScore(user)));
+					out.println(Sage.menuPage(user, Sage.getScore(user)));
+					//out.println(Sage.start(user,Sage.getScore(user)));
 				} else { // no valid Cookie; send login link
 					debug.append("ii");
 					Util.sendEmail(null,email,"Sage Login Link", tokenMessage(createToken(hashedId),request.getRequestURL().toString()));
@@ -202,25 +193,22 @@ public class Launch extends HttpServlet {
 		StringBuffer buf = new StringBuffer(Util.head);
 		buf.append("<div style='width:600px; display:flex; align-items:center;'>"
 				+ "<div>"
-				+ "<h1>Your subscription to Sage has expired</h1>"
-				+ "Expiration: " + user.expires + "<p>"
-				+ "To continue the journey through more than 100 key concepts in General Chemistry, please "
+				+ "<h1>You have no more Sage tokens remaining</h1>"
+				+ "To continue your journey through more than 100 key concepts in General Chemistry, please "
 				+ "indicate your agreement with the two statements below by checking the boxes.<p>"
 				+ "</div>"
 				+ "<img src=/images/sage.png alt='Confucius Parrot' style='float:right'>"
 				+ "</div><p>"
-				+ "<label><input type=checkbox id=terms onChange=showPurchase();> I understand and agree to the <a href=/terms_and_conditions.html target=_blank>Sage Terms and Conditions of Use</a>.</label> <br/>"
-				+ "<label><input type=checkbox id=norefunds onChange=showPurchase();> I understand that all Sage subscription fees are non-refundable.</label> <p>");
+				+ "<label><input type=checkbox id=terms onChange=showPurchase();> I understand and agree to the Sage <a href=/terms_and_conditions.html target=_blank>Sage Terms and Conditions of Use</a>.</label> <br/>"
+				+ "<label><input type=checkbox id=norefunds onChange=showPurchase();> I understand that all Sage purchases are non-refundable.</label> <p>");
 				
 		buf.append("<div id=purchase style='display:none'>"
-				+ "Select the number of months you wish to purchase: "
-				+ "<select id=nMonthsChoice onChange=updateAmount();>"
-				+ "<option value=1>1 month</option>"
-				+ "<option value=2>2 months</option>"
-				+ "<option value=5 selected>5 months</option>"
-				+ "<option value=12>12 months</option>"
+				+ "Select the number of tokens you wish to purchase: "
+				+ "<select id=nTokens onChange=updateAmount();>"
+				+ "<option value=1 selected>100 tokens</option>"
+				+ "<option value=2>500 tokens</option>"
 				+ "</select><p>"
-				+ "Select your preferred payment method below. When the transaction is completed, your subscription will be activated immediately."
+				+ "Select your preferred payment method below. When the transaction is completed, you can restart the tutorial immediately."
 				+ "<h2>Purchase: <span id=amt></span></h2>"
 				+ "  <div id=\"smart-button-container\">"
 				+ "    <div style=\"text-align: center;\">"
@@ -297,7 +285,7 @@ public class Launch extends HttpServlet {
 	
 	static String createToken(String hashedId) throws Exception {
 		Date now = new Date();
-		Date exp = new Date(now.getTime() + 360000L);  // 5 minutes from now
+		Date exp = new Date(now.getTime() + 600000L);  // 5 minutes from now
 		Algorithm algorithm = Algorithm.HMAC256(Util.getHMAC256Secret());
 		
 		String token = JWT.create()
@@ -311,13 +299,13 @@ public class Launch extends HttpServlet {
 
 	static String emailSent() {
 		Date now = new Date();
-		Date fiveMinutesFromNow = new Date(now.getTime() + 360000L);
+		Date tenMinutesFromNow = new Date(now.getTime() + 600000L);
 		return Util.head 
 				+ "<h1>Check Your Email</h1>"
 				+ "<div style='width:600px; display:flex; align-items:center;'>"
 				+ "<div>"
-				+ "We sent an email to your address containing a tokenized link to login to Sage.<p>"
-				+ "The link expires in 5 minutes at <br/>" + fiveMinutesFromNow + "."
+				+ "We sent an email to your address containing a secure link to login to Sage.<p>"
+				+ "The link expires in 10 minutes at <br/>" +tenMinutesFromNow + "."
 				+ "</div>"
 				+ "<img src=/images/sage.png alt='Confucius Parrot' style='float:right'>"
 				+ "</div>"
@@ -385,25 +373,20 @@ public class Launch extends HttpServlet {
 			JsonObject amount = orderDetails.get("purchase_units").getAsJsonArray().get(0).getAsJsonObject().get("amount").getAsJsonObject();
 			if (!amount.get("currency_code").getAsString().equals("USD")) throw new Exception("Payment was not in USD.");
 			int value = (int)amount.get("value").getAsDouble();
-			
-			// calculate the months of subscription from the amount paid
-			int nMonths = 0;
+				
+			// calculate the number of tokens purchased from the amount paid
+			int nTokens = 0;
 			switch (value) {
-			case Util.price: nMonths=1; break;
-			case 2*Util.price: nMonths=2; break;
-			case 4*Util.price: nMonths=5; break;
-			case 8*Util.price: nMonths=12; break;
+			case Util.price: nTokens=100; break;
+			case 4*Util.price: nTokens=500; break;
 			default: throw new Exception("Amount paid was not valid.");
 			}
 			
-			// Set the new expiration Date for the user's subscription
+			// Add purchased tokens to the user's account
 			String hashedId = request.getParameter("HashedId");
 			User user = ofy().load().type(User.class).id(hashedId).now();
 			if (user==null) throw new Exception("User was not found in the datastore");
-			Calendar cal = dateFormat.getCalendar();
-			cal.add(Calendar.MONTH,nMonths);
-			user.expires = cal.getTime();
-			ofy().save().entity(user).now();			
+			user.addTokens(nTokens);
 			return true;
 		} catch (Exception e) {  // FAILED PayPal payment transaction!
 			String message = "<h1>Failed PayPal Payment</h1>"
@@ -415,7 +398,6 @@ public class Launch extends HttpServlet {
 			Util.sendEmail("Sage Admin", "admin@chemvantage.org", "Failed PayPal Payment", message);
 			throw new Exception(message);
 		}
-		//return false;
 	}
 
 	static String thankYouPage(HttpServletRequest request) {
@@ -424,7 +406,8 @@ public class Launch extends HttpServlet {
 		User user = ofy().load().type(User.class).id(request.getParameter("HashedId")).now();
 		buf.append("<h1>Thank you for your purchase</h1>"
 				+ "Date: " + new Date() + "<p>"
-				+ "Your Sage subscription is now activated. It expires " + user.expires + ".<p>"
+				+ "Your Sage account now has " + user.tokensRemaining() + " tokens remaining. "
+				+ "See the <a href='/pricing.html'>pricing</a> page for details of how tokens work.<p>"
 				+ "Please keep a copy of this page as proof of purchase.<p>"
 				+ "<a class=btn role=button href='/sage'>Continue</a><p>"
 				+ "Purchase Details:<br/>" + orderDetails + "<p>");
@@ -438,8 +421,8 @@ public class Launch extends HttpServlet {
 		return "<h1>Login to Sage</h1>"
 			+ "<div style='display:flex; align-items:center;'>"
 			+ "<div>"
-			+ "Please click the tokenized button below to login to your Sage account.<br/>"
-			+ "The link expires in 5 minutes at " + exp + ".<p>"
+			+ "Please click the button below to login to your Sage account.<br/>"
+			+ "The secure link expires in 10 minutes at " + exp + ".<p>"
 			+ "<a href='" + serverUrl + "/launch?Token=" + token + "'>"
 			+ "<button style='border:none;color:white;padding:10px 10px;margin:4px 2px;font-size:16px;cursor:pointer;border-radius:10px;background-color:blue;'>"
 			+ "Login to Sage</button></a>"
@@ -453,33 +436,35 @@ public class Launch extends HttpServlet {
 			JWTVerifier verifier = JWT.require(algorithm).build();
 			verifier.verify(token);
 			DecodedJWT decoded = JWT.decode(token);
-			//String nonce = decoded.getClaim("nonce").asString();
-			//if (!Nonce.isUnique(nonce)) throw new Exception("The login link can only be used once.");
 			return decoded.getSubject();
 	}
 	
 	String welcomePage(String hashedId) throws Exception {
 		StringBuffer buf = new StringBuffer(Util.head);
-		List<Concept> firstConcepts = ofy().load().type(Concept.class).order("orderBy").limit(4).list();
 		buf.append("<h1>Welcome to Sage</h1>"
-				+ "<h2>Sage is an AI-powered tutor for General Chemistry.</h2>"
+				+ "<h2>Sage is an intelligent tutor for General Chemistry.</h2>"
 				+ "<div style='max-width:800px;'>"
 				+ "<img src=/images/sage.png alt='Confucius Parrot' style='float:right'>"
 				+ "You will be guided through a series of questions and problems, with the Sage at your side, "
-				+ "ready to provide help whenever you need it. This tutorial is organized around "
-				+ "100 key concepts that are normally taught in a college-level General Chemistry course.<p>"
-				+ "Accept the terms below to begin your free trial. After 7 days, you can extend your "
-				+ "subscription for only $5 USD per month.<p>"
+				+ "ready to provide help whenever you need it. This tutorial is organized by "
+				+ "146 key concepts that are normally taught in a college-level General Chemistry course."
+				+ "<h2>Your account starts with 100 free tokens</h2>"
+				+ "You need at least 1 token to start a session. Tokens expire at the rate of 1 token per hour, "
+				+ "so 100 tokens will last a little more than 4 days. "
+				+ "Each time you complete a key concept, Sage awards you 100 additional free tokens "
+				+ "(20 tokens for each of 5 levels). Thus you have the potential to earn up to 14,600 tokens "
+				+ "(20 months of Sage tutorials) absolutely free, with no credit card required.<p>"
+				+ "However, if you run out of tokens you may purchase 100 tokens for $5.00 USD. "
+				+ "Let's hope you won't need to do that."
+				+ "<h2>Activate your Sage account</h2>"
+				+ "Check the boxes below to indicate your agreement:<p>"
 				+ "</div>"
 				+ "<form method=post>"
 				+ "<input type=hidden name=token value=" + createToken(hashedId) + " />"
 				+ "<label><input type=checkbox required name=Terms />I agree to the <a href=/terms_and_conditions.html target=_blank>Sage Terms and Conditions of Use</a></label><br/>"
-				+ "<label><input type=checkbox required name=Terms />I understand that Sage subscription fees are nonrefundable.</label><p>"
-				+ "Select the starting point that best fits your needs:<br/>"
-				+ "<label><input type=radio name=ConceptId value='" + firstConcepts.get(0).id + "' checked > I'm getting ready to take a General Chemistry class.</label><br/>"
-				+ "<label><input type=radio name=ConceptId value='" + firstConcepts.get(3).id + "' > I'm ready! Start the General Chemistry tutorial.</label><br/>"
+				+ "<label><input type=checkbox required name=Terms />I understand that Sage purchases are nonrefundable.</label><p>"
 				+ "<input type=hidden name=UserRequest value=Start />"
-				+ "<input class=btn type=submit value='Start My 7-day Free Trial Now' />"
+				+ "<input class=btn type=submit value='Activate My Free Sage Account' />"
 				+ "</form>");
 		return buf.toString() + Util.foot;
 	}
