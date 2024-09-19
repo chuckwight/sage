@@ -48,7 +48,7 @@ public class User {
 		}
 		
 		void addTokens(int nTokens) {
-			this.tokens += nTokens;
+			this.tokens = tokensRemaining() + nTokens;
 			this.tokensUpdated = new Date();
 			ofy().save().entity(this).now();
 		}

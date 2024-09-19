@@ -16,7 +16,7 @@
 	case "100": amtPaid=price; break;
 	case "500": amtPaid=4*price; break;
 	}
-	document.getElementById("amt").innerHTML=nTokens + 'tokens - $' + amtPaid + '.00 USD';
+	document.getElementById("amt").innerHTML=nTokens + ' tokens - $' + amtPaid + '.00 USD';
   }
   updateAmount();
   

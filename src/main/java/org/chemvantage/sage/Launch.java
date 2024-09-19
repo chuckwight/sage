@@ -85,7 +85,6 @@ public class Launch extends HttpServlet {
 				out.println(welcomePage(hashedId));
 			}
 			else if (user.expired()) {  	// no tokens remaining
-				out.println(user.toString() + "<br/>" + hashedId + "<p>");
 				out.println(checkout(user, request.getRequestURL().toString()));
 			}
 			else { // continuing user: set a Cookie with the hashedId value
@@ -94,8 +93,7 @@ public class Launch extends HttpServlet {
 				cookie.setHttpOnly(true);
 				cookie.setMaxAge(60 * 60); // 1 hour
 				response.addCookie(cookie);
-				
-				response.sendRedirect("/sage");
+				out.println(Sage.menuPage(user, Sage.getScore(user)));
 			}
 		} catch (Exception e) {
 			out.println(errorPage(e));
@@ -191,9 +189,10 @@ public class Launch extends HttpServlet {
 		 * The base monthly price (currently $5.00) is set in the checkout_student.js file
 		 */
 		StringBuffer buf = new StringBuffer(Util.head);
-		buf.append("<div style='width:600px; display:flex; align-items:center;'>"
+		buf.append("<h1>You have no more Sage tokens remaining</h1>"
+				+ "<div style='width:600px; display:flex; align-items:center;'>"
 				+ "<div>"
-				+ "<h1>You have no more Sage tokens remaining</h1>"
+				+ "When your account is active, you can earn free tokens. See details <a href=/pricing.html>here</a>.<p>"
 				+ "To continue your journey through more than 100 key concepts in General Chemistry, please "
 				+ "indicate your agreement with the two statements below by checking the boxes.<p>"
 				+ "</div>"
@@ -205,8 +204,8 @@ public class Launch extends HttpServlet {
 		buf.append("<div id=purchase style='display:none'>"
 				+ "Select the number of tokens you wish to purchase: "
 				+ "<select id=nTokens onChange=updateAmount();>"
-				+ "<option value=1 selected>100 tokens</option>"
-				+ "<option value=2>500 tokens</option>"
+				+ "<option value=100 selected>100 tokens</option>"
+				+ "<option value=500>500 tokens</option>"
 				+ "</select><p>"
 				+ "Select your preferred payment method below. When the transaction is completed, you can restart the tutorial immediately."
 				+ "<h2>Purchase: <span id=amt></span></h2>"
@@ -224,8 +223,6 @@ public class Launch extends HttpServlet {
 		// Add a hidden activation form to submit via javascript when the payment is successful
 		buf.append("<form id=activationForm method=post action='/launch' >"
 				+ "<input type=hidden name=UserRequest value='Complete Purchase' />"
-				//+ "<input type=hidden name=NMonths id=nmonths />"
-				//+ "<input type=hidden name=AmountPaid id=amtPaid />"
 				+ "<input type=hidden name=OrderDetails id=orderdetails />"
 				+ "<input type=hidden name=HashedId value='" + user.hashedId + "' />"
 				+ "</form>");
@@ -405,11 +402,16 @@ public class Launch extends HttpServlet {
 		String orderDetails = request.getParameter("OrderDetails");
 		User user = ofy().load().type(User.class).id(request.getParameter("HashedId")).now();
 		buf.append("<h1>Thank you for your purchase</h1>"
+				+ "<div style='width:600px; display:flex; align-items:center;'>"
+				+ "<div>"
 				+ "Date: " + new Date() + "<p>"
 				+ "Your Sage account now has " + user.tokensRemaining() + " tokens remaining. "
 				+ "See the <a href='/pricing.html'>pricing</a> page for details of how tokens work.<p>"
 				+ "Please keep a copy of this page as proof of purchase.<p>"
-				+ "<a class=btn role=button href='/sage'>Continue</a><p>"
+				+ "<a class=btn role=button href='/sage?UserRequest=menu'>Continue</a><p>"
+				+ "</div>"
+				+ "<img src=/images/sage.png alt='Confucius Parrot' style='float:right'>"
+				+ "</div><p>"
 				+ "Purchase Details:<br/>" + orderDetails + "<p>");
 		return buf.toString() + Util.foot;
 	}
