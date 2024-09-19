@@ -235,7 +235,7 @@ public class Question implements Serializable, Cloneable {
 			JsonObject m1 = new JsonObject();  // api request message
 			m1.addProperty("role", "system");
 			m1.addProperty("content","You are a tutor assisting a college student taking General Chemistry.\n"
-					+ "Display your response in LaTeX. LaTex math mode specific delimiters as following\n"
+					+ "Format the response in HTML and use LaTex math mode specific delimiters as follows:\n"
 					+ "inline math mode : `\\(` and `\\)`\n"
 					+ "display math mode: `\\[` and `\\]`\n"
 					+ "");
@@ -617,9 +617,10 @@ public class Question implements Serializable, Cloneable {
 		// correct fill-in-word answers is presented, and choices are not scrambled
 		// showDetails enables display of Solution to numeric problems (default = true)
 		StringBuffer buf = new StringBuffer("\n<a name=" + this.id + "></a>\n");
-		buf.append("<script src='https://polyfill.io/v3/polyfill.min.js?features=es6'></script>\n"
-				+ "<script id='MathJax-script' async src='https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js'></script>\n");
 		
+		buf.append("<script id='MathJax-script' async src='https://polyfill.io/v3/polyfill.min.js'></script>\n"
+				+ " <script id='MathJax-script' async src='https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js'></script>\n");
+				
 		char choice = 'a';
 		switch (getQuestionType()) {
 		case 1: // Multiple Choice

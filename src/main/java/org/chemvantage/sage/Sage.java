@@ -206,7 +206,10 @@ public class Sage extends HttpServlet {
 			JsonObject m1 = new JsonObject();  // api request message
 			m1.addProperty("role", "system");
 			m1.addProperty("content","You are a tutor assisting a college student taking General Chemistry. "
-					+ "You must restrict your response to the topic " + topic + " in General Chemistry.");
+					+ "You must restrict your response to the topic " + topic + " in General Chemistry."
+					+ "Format the response in HTML and use LaTex math mode specific delimiters as follows:\n"
+					+ "inline math mode : `\\(` and `\\)`\n"
+					+ "display math mode: `\\[` and `\\]`\n");
 			messages.add(m1);;
 			JsonObject m2 = new JsonObject();  // api request message
 			m2 = new JsonObject();  // api request message
@@ -311,7 +314,8 @@ public class Sage extends HttpServlet {
 		m1.addProperty("role", "system");
 		m1.addProperty("content","You are a tutor assisting a college student taking General Chemistry. "
 				+ "The student is requesting your help to answer a homework question. Guide the student "
-				+ "in the right general direction, but do not give the correct answer to the question. ");
+				+ "in the right general direction, but do not give the correct answer to the question.\n"
+				+ "Format the response as HTML.");
 		messages.add(m1);;
 		JsonObject m2 = new JsonObject();  // api request message
 		m2 = new JsonObject();  // api request message
