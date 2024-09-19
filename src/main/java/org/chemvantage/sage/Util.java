@@ -47,7 +47,7 @@ public class Util {
 			+ "<head>\n"
 			+ "  <meta charset='UTF-8' />\n"
 			+ "  <meta name='viewport' content='width=device-width, initial-scale=1.0' />\n"
-			+ "  <meta name='description' content='ChemVantage is an LTI app that works with yur LMS for teaching and learning college-level General Chemistry.' />\n"
+			+ "  <meta name='description' content='Sage by ChemVantage is an intelligent tutoring app for learning college-level General Chemistry.' />\n"
 			+ "  <meta http-equiv='Cache-Control' content='no-cache, no-store, must-revalidate' />\n"
 			+ "  <link rel='icon' href='images/logo.png' />\n"
 			+ "  <link rel='canonical' href='https://sage.chemvantage.org' />\n"
