@@ -60,6 +60,10 @@ public class User {
 			return tokens < 0?0:tokens;
 		}
 		
+		Date expiresAt() {
+			return new Date(this.tokensUpdated.getTime() + 3600000L*tokensRemaining());
+		}
+		
 		boolean expired() {
 			return tokensRemaining() == 0;
 		}

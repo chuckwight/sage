@@ -93,7 +93,8 @@ public class Launch extends HttpServlet {
 				cookie.setHttpOnly(true);
 				cookie.setMaxAge(60 * 60); // 1 hour
 				response.addCookie(cookie);
-				out.println(Sage.menuPage(user, Sage.getScore(user)));
+				out.println(welcomeBackPage(user));
+				//out.println(Sage.menuPage(user, Sage.getScore(user)));
 			}
 		} catch (Exception e) {
 			out.println(errorPage(e));
@@ -441,7 +442,21 @@ public class Launch extends HttpServlet {
 			return decoded.getSubject();
 	}
 	
-	String welcomePage(String hashedId) throws Exception {
+	static String welcomeBackPage(User user) {
+		StringBuffer buf = new StringBuffer(Util.head);
+		buf.append("<h1>Welcome Back to Sage</h1>"
+				+ "<div style='max-width:800px;'>"
+				+ "<img src=/images/sage.png alt='Confucius Parrot' style='float:right'>"
+				+ "Your account has " + user.tokensRemaining() + " tokens remaining.<br/>"
+				+ "It will expire at " + user.expiresAt() + ".<p>"
+				+ "To earn more tokens and keep your account free, click on any numbered chapter below "
+				+ "to view the associated key concepts. Then click on a key concept to start the tutorial.<br/>"
+				+ "You may start anywhere, but Sage has indicated a good starting point based on your current scores.<p>"
+				+ "</div>");
+		return buf.toString() + Sage.conceptsMenu(user, Sage.getScore(user));
+}
+	
+	static String welcomePage(String hashedId) throws Exception {
 		StringBuffer buf = new StringBuffer(Util.head);
 		buf.append("<h1>Welcome to Sage</h1>"
 				+ "<h2>Sage is an intelligent tutor for General Chemistry.</h2>"
@@ -452,7 +467,8 @@ public class Launch extends HttpServlet {
 				+ "146 key concepts that are normally taught in a college-level General Chemistry course."
 				+ "<h2>Your account starts with 100 free tokens</h2>"
 				+ "You need at least 1 token to start a session. Tokens expire at the rate of 1 token per hour, "
-				+ "so 100 tokens will last a little more than 4 days. "
+				+ "so 100 tokens will last a little more than 4 days."
+				+ "<h2>So Keep Working To Keep Yoiur Account Free</h2>"
 				+ "Each time you complete a key concept, Sage awards you 100 additional free tokens "
 				+ "(20 tokens for each of 5 levels). Thus you have the potential to earn up to 14,600 tokens "
 				+ "(20 months of Sage tutorials) absolutely free, with no credit card required.<p>"

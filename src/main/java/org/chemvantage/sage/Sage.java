@@ -404,6 +404,11 @@ public class Sage extends HttpServlet {
 		buf.append("<h1>Select a Key Concept</h1>"
 				+ "Click on any numbered chapter to view the associated key concepts. Then click on a key concept to start the tutorial.<br/>"
 				+ "You may start anywhere, but Sage has indicated a good starting point based on your current scores.<p>");
+		return buf.toString() + conceptsMenu(user, currentScore);
+	}
+	
+	static String conceptsMenu (User user, Score currentScore) {
+		StringBuffer buf = new StringBuffer(Util.head);
 		try {
 			if (conceptMap == null) refreshConcepts();
 			List<Key<Chapter>> chapterKeys = ofy().load().type(Chapter.class).order("chapterNumber").keys().list();
