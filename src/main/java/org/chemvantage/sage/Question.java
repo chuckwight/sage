@@ -618,8 +618,7 @@ public class Question implements Serializable, Cloneable {
 		// showDetails enables display of Solution to numeric problems (default = true)
 		StringBuffer buf = new StringBuffer("\n<a name=" + this.id + "></a>\n");
 		
-		buf.append("<script id='MathJax-script' async src='https://polyfill.io/v3/polyfill.min.js'></script>\n"
-				+ " <script id='MathJax-script' async src='https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js'></script>\n");
+		buf.append("<script id='MathJax-script' async src='https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js'></script>\n");
 				
 		char choice = 'a';
 		switch (getQuestionType()) {

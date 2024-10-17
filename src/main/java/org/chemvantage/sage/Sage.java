@@ -313,16 +313,20 @@ public class Sage extends HttpServlet {
 		JsonObject m1 = new JsonObject();  // api request message
 		m1.addProperty("role", "system");
 		m1.addProperty("content","You are a tutor assisting a college student taking General Chemistry. "
-				+ "The student is requesting your help to answer a homework question. Guide the student "
-				+ "in the right general direction, but do not give the correct answer to the question.\n"
-				+ "Format the response as HTML.");
+				+ "The student is requesting your help to answer the following question item:\n."
+				+ q.printForSage()
+				+ "\nPlease guide the student in the right general direction, "
+				+ "but do not give the correct answer to the question.\n"
+				+ "Format the response as HTML with LaTeX for math.");
 		messages.add(m1);;
+		/*
 		JsonObject m2 = new JsonObject();  // api request message
 		m2 = new JsonObject();  // api request message
 		m2.addProperty("role", "user");
 		m2.addProperty("content","Please help me answer this General Chemistry problem: \n"
 				+ q.printForSage());
 		messages.add(m2);
+		*/
 		api_request.add("messages", messages);
 		URL u = new URL("https://api.openai.com/v1/chat/completions");
 		HttpURLConnection uc = (HttpURLConnection) u.openConnection();
@@ -537,6 +541,8 @@ public class Sage extends HttpServlet {
 						+ "<img src=/images/sage.png alt='Confucius Parrot' style='float:right'>"
 						+ "</div>");
 				
+				buf.append("<script id='MathJax-script' async src='https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js'></script>\n");
+				
 				buf.append("<div id=helpful>"
 						+ "<span><b>Is this helpful?</b></span> " 
 						+ "<a href=#  style='vertical-align:middle' onclick=wasHelpful(true);><img src=/images/thumbs_up.png alt='thumbs up' style='height:30px' /></a>&nbsp;"
@@ -734,12 +740,6 @@ public class Sage extends HttpServlet {
 					buf.append("Your Sage account now has " + user.tokensRemaining() + " tokens.<br/>");
 					buf.append(askAQuestion(topic,Nonce.getHexString()));
 				}
-				// Retrieve the next concept in the list and update the user
-				//int conceptIndex = conceptList.indexOf(conceptMap.get(user.conceptId));
-				//while (ofy().load().type(Score.class).parent(s.owner).id(conceptList.get(conceptIndex+1).id).now()!=null) conceptIndex++;
-				//user.conceptId = conceptList.get(conceptIndex+1).id;
-				//ofy().save().entity(user).now();
-				//buf.append("The next concept is: <b>" + conceptList.get(conceptIndex+1).title + "</b>&nbsp;");
 			} else if (level_up) {
 				buf.append("<h3>You have moved up to Level " + (s.score/20 + 1) +" and earned 20 tokens.</h3>"
 						+ "<b>Your current score on this concept is " + s.score + "%.</b>&nbsp;");
@@ -870,7 +870,8 @@ public class Sage extends HttpServlet {
 					+ (c.summary==null?ConceptManager.getConceptSummary(c):c.summary) + "<p>"
 					+ "<a class=btn role=button href='/sage'>Continue</a>"
 					+ "</div>");
-
+			
+			buf.append("<script id='MathJax-script' async src='https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js'></script>\n");
 		} catch (Exception e) {
 			buf.append("<p>Error: " + e.getMessage()==null?e.toString():e.getMessage());
 		}
