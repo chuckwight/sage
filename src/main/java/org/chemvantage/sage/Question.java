@@ -228,14 +228,19 @@ public class Question implements Serializable, Cloneable {
 			BufferedReader reader = null;
 			JsonObject api_request = new JsonObject();  // these are used to score essay questions using ChatGPT
 			api_request.addProperty("model",Util.getGPTModel());
-			api_request.addProperty("max_tokens",600);
+			//api_request.addProperty("max_tokens",600);
 			api_request.addProperty("temperature",0.4);
 
 			JsonArray messages = new JsonArray();
 			JsonObject m1 = new JsonObject();  // api request message
 			m1.addProperty("role", "system");
-			m1.addProperty("content","You are a tutor assisting a college student taking General Chemistry.\n"
-					+ "Format the response in HTML and use LaTex math mode specific delimiters as follows:\n"
+			m1.addProperty("content","You are a tutor assisting a college student taking General Chemistry. "
+					+ "Explain why\n" + getCorrectAnswerForSage() + "\n"
+					+ "is the correct answer to the following question item:\n"
+					+ printForSage() + "\n"
+					+ "Format your response in HTML ans use LaTeX for math.");
+			/*
+			+ "Format the response in HTML and use LaTex math mode specific delimiters as follows:\n"
 					+ "inline math mode : `\\(` and `\\)`\n"
 					+ "display math mode: `\\[` and `\\]`\n"
 					+ "");
@@ -243,8 +248,9 @@ public class Question implements Serializable, Cloneable {
 			m2.addProperty("role", "user");
 			m2.addProperty("content","Briefly explain why\n" + getCorrectAnswerForSage() + "\n"
 					+ "is the correct answer to this problem:\n" + printForSage());
-			messages.add(m1);
 			messages.add(m2);
+			*/
+			messages.add(m1);
 			api_request.add("messages", messages);
 			URL u = new URL("https://api.openai.com/v1/chat/completions");
 			HttpURLConnection uc = (HttpURLConnection) u.openConnection();

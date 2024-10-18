@@ -447,14 +447,21 @@ static 	String questionTypeDropDownBox(int questionType) {
 		
 		if (conceptMap == null) refreshConcepts();		
 		Concept concept = conceptMap.get(conceptId);
-		
+		/*
 		buf.append("\n<form id='conceptselector' method=get>Concept: "
 				+ "<select name=ConceptId onchange='submit();' >"
 				+ "<option>Select a concept</option>");
 		for (Concept c : conceptList) buf.append("<option value='" + c.id + (c.id.equals(conceptId)?"' selected >":"' >") + c.title + "</option>\n");
 		buf.append("</select></form>");
-		
-		if (concept != null) {
+		*/
+		if (concept == null) {
+			buf.append("<h2>Question Items</h2>\n"
+					+ "There are currently " + ofy().load().type(Question.class).count() + " questions in the datastore. "
+					+ "Click on a concept below to edit the associated questions.<p>\n");
+			for (Concept c : conceptList) {
+				buf.append("<a href='/questions?ConceptId=" + c.id + "'>" + c.title + "</a> - " + ofy().load().type(Question.class).filter("conceptId",c.id).count() + "<br/>");
+			}
+		} else {
 			List<Question> questions = ofy().load().type(Question.class).filter("conceptId",conceptId).list();
 			
 			buf.append("This concept has " + questions.size() + " question items. ");
