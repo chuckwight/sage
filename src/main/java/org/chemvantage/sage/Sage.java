@@ -17,6 +17,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 
+import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
@@ -42,6 +43,27 @@ public class Sage extends HttpServlet {
 		PrintWriter out = response.getWriter();
 		response.setContentType("text/html");
 		
+		refreshConcepts();
+		
+		if("GetQuestions".equals(request.getParameter("UserRequest"))) {
+			String title = request.getParameter("Concept");
+			Long cId = null;
+			for (Concept c : conceptList) {
+				if (c.title.equals(title)) {
+					cId = c.id;
+					break;
+				}
+			}
+			if (cId==null) return;
+			List<Question> questions = ofy().load().type(Question.class).filter("conceptId",cId).list();
+			JsonArray array = new JsonArray();
+			Gson gson = new Gson();
+			for (Question q : questions) array.add(gson.toJsonTree(q));
+			response.setContentType("application/json");
+			out.println(array.toString());
+			return;
+		}
+
 		StringBuffer debug = new StringBuffer("Debug: ");
 		try {
 			User user = getFromCookie(request, response);
@@ -51,7 +73,6 @@ public class Sage extends HttpServlet {
 			}
 			
 			// set the user's desired or default conceptId
-			if (conceptMap == null) refreshConcepts();
 			try {  // request from menuPage
 				Long conceptId = Long.parseLong(request.getParameter("ConceptId"));
 				if (!conceptId.equals(user.conceptId)) {
@@ -106,6 +127,8 @@ public class Sage extends HttpServlet {
 		PrintWriter out = response.getWriter();
 		response.setContentType("text/html");
 
+		refreshConcepts();
+		
 		User user = getFromCookie(request, response);
 		if (user == null) {
 			response.sendRedirect("/");
@@ -199,7 +222,7 @@ public class Sage extends HttpServlet {
 			BufferedReader reader = null;
 			JsonObject api_request = new JsonObject();  // these are used to score essay questions using ChatGPT
 			api_request.addProperty("model",Util.getGPTModel());
-			api_request.addProperty("max_tokens",400);
+			//api_request.addProperty("max_tokens",400);
 			api_request.addProperty("temperature",0.4);
 			
 			JsonArray messages = new JsonArray();
@@ -306,7 +329,7 @@ public class Sage extends HttpServlet {
 		BufferedReader reader = null;
 		JsonObject api_request = new JsonObject();  // these are used to score essay questions using ChatGPT
 		api_request.addProperty("model",Util.getGPTModel());
-		api_request.addProperty("max_tokens",200);
+		//api_request.addProperty("max_tokens",200);
 		api_request.addProperty("temperature",0.2);
 		
 		JsonArray messages = new JsonArray();
@@ -414,7 +437,8 @@ public class Sage extends HttpServlet {
 	static String conceptsMenu (User user, Score currentScore) {
 		StringBuffer buf = new StringBuffer(Util.head);
 		try {
-			if (conceptMap == null) refreshConcepts();
+			refreshConcepts();
+			
 			List<Key<Chapter>> chapterKeys = ofy().load().type(Chapter.class).order("chapterNumber").keys().list();
 			Map<Key<Chapter>,Chapter> chapters = ofy().load().keys(chapterKeys);
 			Map<Long,List<Long>> chapterMap = new HashMap<Long,List<Long>>();
@@ -520,9 +544,8 @@ public class Sage extends HttpServlet {
 	static String poseQuestion(Score s, boolean help, long p) throws Exception {
 		StringBuffer buf = new StringBuffer(Util.head);
 		try {
-			if (conceptMap == null) refreshConcepts();
 			Concept c = conceptMap.get(s.conceptId);
-			Question q = ofy().load().type(Question.class).id(s.questionId).now();
+			Question q = s.score==100?null:ofy().load().type(Question.class).id(s.questionId).now();
 			if (q==null) {
 				s.questionId = getNewQuestionId(s);
 				ofy().save().entity(s);
@@ -604,7 +627,6 @@ public class Sage extends HttpServlet {
 
 	static String printScore(HttpServletRequest request, Score s) throws Exception {
 		// Prepare a section that allows the user to ask Sage a question
-		if (conceptList==null) refreshConcepts();
 		User user = ofy().load().key(s.owner).now();
 		String topic = conceptList.get(conceptList.indexOf(conceptMap.get(user.conceptId))).title;
 
@@ -799,26 +821,63 @@ public class Sage extends HttpServlet {
 	}
 
 	static void refreshConcepts() {
-		conceptList = ofy().load().type(Concept.class).order("orderBy").list();
-		conceptMap = new HashMap<Long,Concept>();
-		for (Concept c : conceptList) conceptMap.put(c.id, c);
+		if (conceptMap == null) {
+    		conceptList = ofy().load().type(Concept.class).order("orderBy").list();
+    		conceptMap = new HashMap<Long,Concept>();
+    		for (Concept c : conceptList) conceptMap.put(c.id, c);
+    	}
 	}
-
+	
 	static JsonObject scoreEssayQuestion(String questionText, String studentAnswer) throws Exception {
 		if (studentAnswer.length()>800) studentAnswer = studentAnswer.substring(0,799);
 		JsonObject api_request = new JsonObject();  // these are used to score essay questions using ChatGPT
+		JsonObject api_score = new JsonObject();
+		StringBuffer debug = new StringBuffer("<h3>Debug</h3>");
+		
 		api_request.addProperty("model",Util.getGPTModel());
-		api_request.addProperty("max_tokens",200);
+		//api_request.addProperty("max_tokens",200);
 		api_request.addProperty("temperature",0.2);
-		JsonObject m = new JsonObject();  // api request message
-		m.addProperty("role", "user");
-		String prompt = "Question: \"" + questionText +  "\"\n My response: \"" + studentAnswer + "\"\n "
-				+ "Using JSON format, give a score for my response (integer in the range 0 to 5) "
-				+ "and feedback for how to improve my response.";
-		m.addProperty("content", prompt);
+		
 		JsonArray messages = new JsonArray();
-		messages.add(m);
+		debug.append("m1");
+		JsonObject m1 = new JsonObject();  // api request message
+		m1.addProperty("role", "system");
+		m1.addProperty("content","You are a tutor for a General Chemistry class. "
+				+ "Using JSON format, give a score (integer in the range 0 to 5) for the short "
+				+ "essay written by the student, and give feedback to the student on how to improve the essay."
+				+ "The essay prompt was:\n" + questionText);
+		messages.add(m1);
+				
+		debug.append("m2");
+		JsonObject m2 = new JsonObject();  // api request message
+		m2.addProperty("role", "user");
+		m2.addProperty("content",studentAnswer);
+		m2.addProperty("response_mode", "json_object");
+		messages.add(m2);
+		
 		api_request.add("messages", messages);
+		
+		debug.append("rf");
+		// add JSON response format:
+		JsonObject response_format = JsonParser.parseString("{"
+				+ "		        'type': 'json_schema',"
+				+ "		        'json_schema': {"
+				+ "		            'name': 'sage_tutor',"
+				+ "		            'schema': {"
+				+ "		                'type': 'object',"
+				+ "		                'properties': {"
+				+ "		                    'score': {'type': 'number'},"
+				+ "		                    'feedback': {'type': 'string'}"
+				+ "		                },"
+				+ "		                'required': ['score', 'feedback'],"
+				+ "		                'additionalProperties': False"
+				+ "		            },"
+				+ "		            'strict': True"
+				+ "		        }"
+				+ "		    }").getAsJsonObject();
+		api_request.add("response_format",response_format);
+		
+		debug.append("uc");
 		URL u = new URL("https://api.openai.com/v1/chat/completions");
 		HttpURLConnection uc = (HttpURLConnection) u.openConnection();
 		uc.setRequestMethod("POST");
@@ -826,28 +885,18 @@ public class Sage extends HttpServlet {
 		uc.setDoOutput(true);
 		uc.setRequestProperty("Authorization", "Bearer " + Util.getOpenAIKey());
 		uc.setRequestProperty("Content-Type", "application/json");
-		uc.setRequestProperty("Accept", "application/json");
+		uc.setRequestProperty("Accept", "text/html");
 		OutputStream os = uc.getOutputStream();
 		byte[] json_bytes = api_request.toString().getBytes("utf-8");
 		os.write(json_bytes, 0, json_bytes.length);           
 		os.close();
 		
-		BufferedReader reader = null;
-		reader = new BufferedReader(new InputStreamReader(uc.getInputStream()));
-		JsonObject api_response = JsonParser.parseReader(reader).getAsJsonObject();
-		reader.close();
+		debug.append("read");
+		BufferedReader reader = new BufferedReader(new InputStreamReader(uc.getInputStream()));
+		JsonObject api_response = JsonParser.parseReader(reader).getAsJsonObject();debug.append("json");
+		String content = api_response.get("choices").getAsJsonArray().get(0).getAsJsonObject().get("message").getAsJsonObject().get("content").getAsString();
+		api_score = JsonParser.parseString(content).getAsJsonObject();api_score.addProperty("score", 0);
 		
-		// get the ChatGPT score from the response:
-		JsonObject api_score = null;
-		try {
-			String content = api_response.get("choices").getAsJsonArray().get(0).getAsJsonObject().get("message").getAsJsonObject().get("content").getAsString();
-			api_score = JsonParser.parseString(content).getAsJsonObject();
-			return api_score;
-		} catch (Exception e) {
-			api_score = new JsonObject();
-			api_score.addProperty("score", 0);
-			api_score.addProperty("feedback", "Sorry, an error occurred: " + e.getMessage()==null?e.toString():e.getMessage());
-		}
 		return api_score;
 	}
 	
@@ -856,7 +905,6 @@ public class Sage extends HttpServlet {
 		try {
 			user.updateConceptId(s.conceptId);
 			
-			if (conceptMap == null) refreshConcepts();
 			Concept c = conceptMap.get(s.conceptId);
 			
 			if (s.questionId == null) {

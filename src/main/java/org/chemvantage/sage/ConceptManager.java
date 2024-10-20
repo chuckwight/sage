@@ -109,9 +109,9 @@ public class ConceptManager extends HttpServlet {
 	
 	static String getConceptSummary(Concept c) throws Exception {
 		JsonObject api_request = new JsonObject();  // these are used to score essay questions using ChatGPT
-		api_request.addProperty("model","gpt-4");
+		api_request.addProperty("model",Util.getGPTModel());
 		//api_request.addProperty("model","gpt-3.5-turbo");
-		api_request.addProperty("max_tokens",200);
+		//api_request.addProperty("max_tokens",200);
 		api_request.addProperty("temperature",0.2);
 
 		JsonArray messages = new JsonArray();
@@ -132,7 +132,7 @@ public class ConceptManager extends HttpServlet {
 		uc.setDoOutput(true);
 		uc.setRequestProperty("Authorization", "Bearer " + Util.getOpenAIKey());
 		uc.setRequestProperty("Content-Type", "application/json");
-		uc.setRequestProperty("Accept", "text/html");
+		uc.setRequestProperty("Accept", "application/json");
 		OutputStream os = uc.getOutputStream();
 		byte[] json_bytes = api_request.toString().getBytes("utf-8");
 		os.write(json_bytes, 0, json_bytes.length);           
