@@ -218,6 +218,8 @@ public class Sage extends HttpServlet {
 
 	static String askSage(String topic, Score s, String userPrompt) {
 		StringBuffer buf = new StringBuffer(Util.head);
+		buf.append("<script id='MathJax-script' async src='https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js'></script>\n");
+		
 		try {
 			BufferedReader reader = null;
 			JsonObject api_request = new JsonObject();  // these are used to score essay questions using ChatGPT
@@ -281,8 +283,6 @@ public class Sage extends HttpServlet {
 					+ " } catch (error) {}"
 					+ "}"
 					+ "</script>");
-			//buf.append("<p><a class=btn role=button href='/sage'>Continue</a><p>");
-			
 		} catch (Exception e) {
 			buf.append("<p>Error: " + (e.getMessage()==null?e.toString():e.getMessage()) + "<p>");
 		}
@@ -545,12 +545,12 @@ public class Sage extends HttpServlet {
 		StringBuffer buf = new StringBuffer(Util.head);
 		try {
 			Concept c = conceptMap.get(s.conceptId);
-			Question q = s.score==100?null:ofy().load().type(Question.class).id(s.questionId).now();
-			if (q==null) {
+			Question q = null;
+			if (s.score==100 || s.questionId==null) {  // user is new to concept or revisiting a concept after mastery
 				s.questionId = getNewQuestionId(s);
 				ofy().save().entity(s);
-				q = ofy().load().type(Question.class).id(s.questionId).now();
-			}
+			}		
+			q = ofy().load().type(Question.class).id(s.questionId).now();
 			if (p == 0L) p = new Random().nextLong(Long. MAX_VALUE);
 			q.setParameters(p);
 	
@@ -629,6 +629,7 @@ public class Sage extends HttpServlet {
 		// Prepare a section that allows the user to ask Sage a question
 		User user = ofy().load().key(s.owner).now();
 		String topic = conceptList.get(conceptList.indexOf(conceptMap.get(user.conceptId))).title;
+		boolean mastered = s.score >=100;
 
 		StringBuffer buf = new StringBuffer(Util.head);
 		
@@ -754,13 +755,13 @@ public class Sage extends HttpServlet {
 					Chapter nextChapter = ofy().load().type(Chapter.class).filter("chapterNumber",ch.chapterNumber+1).first().now();
 					if (nextChapter == null) buf.append("<h1>Congratulations, you finished!</h1>");
 					else {
-						buf.append(askAQuestion(topic,Nonce.getHexString()));
+						if (!mastered) buf.append(askAQuestion(topic,Nonce.getHexString()));
 						buf.append("<br/>The next chapter is: <b>" + nextChapter.title + "</b>.<br/>");
 					}
 				} else {  // concept was completed
 					buf.append("You have mastered the concept: <b>" + topic +"</b>" + (level_up?" and earned 20 more tokens":"") + ".</br/>");
 					buf.append("Your Sage account now has " + user.tokensRemaining() + " tokens.<br/>");
-					buf.append(askAQuestion(topic,Nonce.getHexString()));
+					if (!mastered) buf.append(askAQuestion(topic,Nonce.getHexString()));
 				}
 			} else if (level_up) {
 				buf.append("<h3>You have moved up to Level " + (s.score/20 + 1) +" and earned 20 tokens.</h3>"
