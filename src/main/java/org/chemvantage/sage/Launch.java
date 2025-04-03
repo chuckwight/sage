@@ -468,7 +468,7 @@ public class Launch extends HttpServlet {
 				+ "<h2>Your account starts with 100 free tokens</h2>"
 				+ "You need at least 1 token to start a session. Tokens expire at the rate of 1 token per hour, "
 				+ "so 100 tokens will last a little more than 4 days."
-				+ "<h2>So Keep Working To Keep Yoiur Account Free</h2>"
+				+ "<h2>So Keep Working To Keep Your Account Free</h2>"
 				+ "Each time you complete a key concept, Sage awards you 100 additional free tokens "
 				+ "(20 tokens for each of 5 levels). Thus you have the potential to earn up to 14,600 tokens "
 				+ "(20 months of Sage tutorials) absolutely free, with no credit card required.<p>"
